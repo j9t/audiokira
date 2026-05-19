@@ -21,6 +21,7 @@ const PRESETS = [
 ];
 
 // Core state
+let loadToken = 0;
 let playbackCtx = null;
 let previewOffsetAtStart = 0;
 let srcBuffer = null;
@@ -113,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveHistory();
     renderFilterList();
     drawSpectrogram();
+    restartPreview();
   });
 
   // Waveform interaction
@@ -186,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadFile(file) {
   stopPreview();
+  const token = ++loadToken;
 
   elDropZone.classList.add('d-none');
   elAudioInfo.classList.remove('d-none');
@@ -195,9 +198,21 @@ async function loadFile(file) {
 
   // Use a short-lived context only for decoding; playback gets its own fresh context per play.
   const decodeCtx = new AudioContext();
-  const arrayBuffer = await file.arrayBuffer();
-  srcBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
-  decodeCtx.close();
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    srcBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
+  } catch (err) {
+    srcBuffer = null;
+    elAudioInfo.classList.add('d-none');
+    elDropZone.classList.remove('d-none');
+    elFileInput.value = '';
+    alert(`Failed to load file: ${err.message}`);
+    return;
+  } finally {
+    decodeCtx.close();
+  }
+
+  if (token !== loadToken) return;
 
   viewStart = 0;
   viewEnd = 1;
@@ -215,7 +230,8 @@ async function loadFile(file) {
 
   elDetectionResults.classList.add('d-none');
   elSpectrogramProgress.textContent = 'Analyzing…';
-  await computeSpectrogram();
+  await computeSpectrogram(token);
+  if (token !== loadToken) return;
   drawSpectrogram();
   elSpectrogramOverlay.classList.add('d-none');
 }
@@ -462,7 +478,7 @@ function clearSelection() {
 
 // --- Spectrogram computation ---
 
-async function computeSpectrogram() {
+async function computeSpectrogram(token) {
   const data = srcBuffer.getChannelData(0);
   const numBins = FFT_SIZE / 2;
   specMags = new Float32Array(SPEC_COLS * numBins);
@@ -471,6 +487,7 @@ async function computeSpectrogram() {
   const chunkSize = 64;
   for (let col = 0; col < SPEC_COLS; col += chunkSize) {
     await new Promise(resolve => setTimeout(resolve, 0));
+    if (token !== loadToken) return;
     const end = Math.min(col + chunkSize, SPEC_COLS);
     for (let c = col; c < end; c++) {
       const center = Math.round((c + 0.5) * data.length / SPEC_COLS);
