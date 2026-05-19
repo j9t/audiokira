@@ -209,7 +209,7 @@ async function loadFile(file) {
     alert(`Failed to load file: ${err.message}`);
     return;
   } finally {
-    decodeCtx.close();
+    await decodeCtx.close().catch(() => {});
   }
 
   if (token !== loadToken) return;
@@ -222,6 +222,7 @@ async function loadFile(file) {
   history = [[]];
   historyIndex = 0;
 
+  elFilterFreq.max = Math.round(srcBuffer.sampleRate / 2);
   renderFilterList();
   updateUndoRedoButtons();
   clearSelection();
@@ -574,8 +575,7 @@ function drawSpectrogram() {
     const col = Math.max(0, Math.min(SPEC_COLS - 1, startCol + Math.round(px * numViewCols / width)));
     const off = col * numBins;
     for (let py = 0; py < height; py++) {
-      const bin = Math.round(yToHz(py, height, sampleRate) * FFT_SIZE / sampleRate);
-      if (bin < 0 || bin >= numBins) continue;
+      const bin = Math.min(Math.round(yToHz(py, height, sampleRate) * FFT_SIZE / sampleRate), numBins - 1);
       const mag = specMags[off + bin];
       const t = specMaxMag > 0 ? mag / specMaxMag : 0;
       const db = t > 0 ? Math.max(0, 1 + Math.log10(t) / 3) : 0;
@@ -661,7 +661,7 @@ function handleSpectrogramClick(event) {
   if (!srcBuffer) return;
   const rect = elSpectrogramCanvas.getBoundingClientRect();
   const y = event.clientY - rect.top;
-  const freq = Math.max(1, Math.min(22000, Math.round(yToHz(y, rect.height, srcBuffer.sampleRate))));
+  const freq = Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), Math.round(yToHz(y, rect.height, srcBuffer.sampleRate))));
   const q = parseFloat(elFilterQ.value) || 30;
   const type = elFilterType.value;
   elFilterFreq.value = freq;
@@ -896,7 +896,7 @@ function startPreview(offsetOverride) {
   elBtnStop.classList.remove('d-none');
 
   source.onended = () => {
-    playbackCtx?.close();
+    playbackCtx?.close().catch(() => {});
     playbackCtx = null;
     previewSource = null;
     elBtnPreview.classList.remove('d-none');
@@ -907,7 +907,7 @@ function startPreview(offsetOverride) {
 function restartPreview() {
   if (!previewSource) return;
   const position = previewOffsetAtStart + (playbackCtx?.currentTime ?? 0);
-  startPreview(Math.min(position, srcBuffer.duration - 0.01));
+  startPreview(Math.max(0, Math.min(position, Math.max(0, srcBuffer.duration - 0.01))));
 }
 
 function stopPreview() {
