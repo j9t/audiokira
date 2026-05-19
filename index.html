@@ -105,9 +105,9 @@
 							<span class="d-none d-sm-inline small text-body-secondary">Scroll to zoom · drag to pan · shift-drag to select</span>
 							<span id="waveform-time" class="font-monospace small text-body-secondary"></span>
 							<div class="btn-group btn-group-sm">
-								<button id="btn-zoom-out" class="btn btn-outline-secondary" title="Zoom out">−</button>
-								<button id="btn-zoom-reset" class="btn btn-outline-secondary" title="Reset zoom">Reset</button>
-								<button id="btn-zoom-in" class="btn btn-outline-secondary" title="Zoom in">+</button>
+								<button id="btn-zoom-out" aria-label="Zoom out" title="Zoom out" class="btn btn-outline-secondary">−</button>
+								<button id="btn-zoom-reset" title="Reset zoom" class="btn btn-outline-secondary">Reset</button>
+								<button id="btn-zoom-in" aria-label="Zoom in" title="Zoom in" class="btn btn-outline-secondary">+</button>
 							</div>
 						</div>
 					</div>
@@ -146,8 +146,8 @@
 						<div class="align-items-center d-flex gap-2">
 							<button id="btn-detect" class="btn btn-outline-info btn-sm">Detect recurring bands</button>
 							<div class="btn-group btn-group-sm">
-								<button id="btn-undo" class="btn btn-outline-secondary" title="Undo (Ctrl+Z)" disabled>Undo</button>
-								<button id="btn-redo" class="btn btn-outline-secondary" title="Redo (Ctrl+Y)" disabled>Redo</button>
+								<button id="btn-undo" class="btn btn-outline-secondary" title="Undo (Ctrl + Z)" disabled>Undo</button>
+								<button id="btn-redo" class="btn btn-outline-secondary" title="Redo (Ctrl + Y)" disabled>Redo</button>
 							</div>
 						</div>
 					</div>
@@ -220,7 +220,7 @@
 						<ul class="mb-0 small">
 							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
 							<li class="mb-2">"Detect recurring bands" flags frequencies present in more than roughly a third of the file. The percentage shown is how often that frequency appeared above a noise floor.</li>
-							<li class="mb-2">Use Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) to undo and redo filter changes.</li>
+							<li class="mb-2">Use <kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Y</kbd> (or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>) to undo and redo filter changes.</li>
 							<li>MP3 export requires an internet connection to load the encoding library.</li>
 						</ul>
 					</div>
@@ -238,7 +238,7 @@
 			</details>
 		</main>
 		<footer class="border-top container-fluid px-0 py-2">
-			<p class="mb-0 small text-body-secondary">A project by <a href="https://meiert.com/">Jens Oliver Meiert</a></p>
+			<p class="mb-0 small text-body-secondary">A project by <a href="https://meiert.com/">Jens Oliver Meiert</a>.</p>
 		</footer>
 		<script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" integrity="sha384-xuasJXVcyv3hZq0eYpelEkBC8l4yufatZXDsKuyCU2rqfhDCb+ftuE/mSfZAteiK" crossorigin="anonymous"></script>
 		<script src="app.js"></script>
