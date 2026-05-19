@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Audiokira · Audio Frequency Editor</title>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+		<style>
+			canvas {
+				display: block;
+			}
+
+			#drop-zone {
+				border: 2px dashed var(--bs-border-color);
+				border-radius: var(--bs-border-radius-lg);
+				cursor: pointer;
+				transition: background .15s, border-color .15s;
+			}
+
+			#drop-zone.dragover {
+				background: var(--bs-primary-bg-subtle);
+				border-color: var(--bs-primary);
+			}
+
+			#export-format,
+			#filter-type {
+				width: auto;
+			}
+
+			#filter-freq {
+				width: 130px;
+			}
+
+			#filter-list .badge {
+				font-size: .85em;
+			}
+
+			#filter-list .btn-close {
+				font-size: .55em;
+			}
+
+			#filter-q {
+				width: 110px;
+			}
+
+			#spectrogram-canvas {
+				height: 220px;
+			}
+
+			#spectrogram-overlay {
+				background: rgba(0, 0, 0, .65);
+			}
+
+			#spectrogram-scrollbar {
+				background: var(--bs-secondary-bg);
+				cursor: ew-resize;
+				height: 8px;
+				position: relative;
+				user-select: none;
+			}
+
+			#spectrogram-scroll-thumb {
+				background: var(--bs-secondary);
+				border-radius: 4px;
+				height: 100%;
+				position: absolute;
+			}
+
+			#waveform-canvas {
+				height: 120px;
+			}
+
+			summary {
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	<body class="px-4 py-2">
+		<nav class="navbar">
+			<div class="container-fluid px-0">
+				<h1 class="h1 mb-0 navbar-brand">Audiokira</h1>
+				<span class="small text-body-secondary">Audio frequency editor</span>
+			</div>
+		</nav>
+		<main class="container-fluid my-2 p-0">
+			<div id="drop-zone" class="mb-4 p-4 text-center">
+				<p class="fs-5 mb-2">Drop an audio or video file here</p>
+				<p class="mb-2 text-body-secondary">or</p>
+				<button type="button" class="btn btn-primary">Choose file</button>
+				<input type="file" id="file-input" accept="audio/*,video/*" class="d-none">
+				<p class="mt-3 small text-body-secondary">Supported: MP3, WAV, AAC, OGG, FLAC, MP4, WebM, and more</p>
+			</div>
+			<div id="audio-info" class="d-none">
+				<div class="align-items-center d-flex justify-content-between mb-4">
+					<span id="file-name" class="small text-body-secondary"></span>
+					<div class="d-flex gap-2">
+						<button id="btn-reset-filters" class="btn btn-outline-secondary btn-sm">Reset filters</button>
+						<button id="btn-reset" class="btn btn-outline-secondary btn-sm">Load new file</button>
+					</div>
+				</div>
+				<div class="card mb-2">
+					<div class="align-items-center card-header d-flex justify-content-between">
+						<span>Waveform</span>
+						<div class="align-items-center d-flex gap-2">
+							<span class="d-none d-sm-inline small text-body-secondary">Scroll to zoom · drag to pan · shift-drag to select</span>
+							<span id="waveform-time" class="font-monospace small text-body-secondary"></span>
+							<div class="btn-group btn-group-sm">
+								<button id="btn-zoom-out" aria-label="Zoom out" title="Zoom out" class="btn btn-outline-secondary">−</button>
+								<button id="btn-zoom-reset" title="Reset zoom" class="btn btn-outline-secondary">Reset</button>
+								<button id="btn-zoom-in" aria-label="Zoom in" title="Zoom in" class="btn btn-outline-secondary">+</button>
+							</div>
+						</div>
+					</div>
+					<div class="card-body p-0">
+						<canvas id="waveform-canvas" class="w-100"></canvas>
+					</div>
+				</div>
+				<div id="selection-info" class="alert alert-warning align-items-center d-flex d-none justify-content-between mb-4 px-2 py-2">
+					<span class="small">Selection: <span id="selection-time-label" class="font-monospace"></span></span>
+					<div class="align-items-center d-flex gap-2">
+						<span class="fst-italic small">Preview plays selection · Export filters within selection only</span>
+						<button id="btn-clear-sel" class="btn btn-outline-warning btn-sm py-0">Clear</button>
+					</div>
+				</div>
+				<div class="card mb-2">
+					<div class="align-items-center card-header d-flex justify-content-between">
+						<span>Spectrogram</span>
+						<span class="small text-body-secondary">Click to add notch filter at that frequency</span>
+					</div>
+					<div class="card-body p-0 position-relative">
+						<canvas id="spectrogram-canvas" class="w-100"></canvas>
+						<div id="spectrogram-overlay" class="align-items-center d-flex h-100 justify-content-center position-absolute start-0 top-0 w-100">
+							<div class="text-center text-white">
+								<div class="me-2 spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+								<span id="spectrogram-progress">Analyzing…</span>
+							</div>
+						</div>
+					</div>
+					<div id="spectrogram-scrollbar">
+						<div id="spectrogram-scroll-thumb"></div>
+					</div>
+				</div>
+				<div class="card mb-4">
+					<div class="align-items-center card-header d-flex justify-content-between">
+						<span>Notch Filters</span>
+						<div class="align-items-center d-flex gap-2">
+							<button id="btn-detect" class="btn btn-outline-info btn-sm">Detect recurring bands</button>
+							<div class="btn-group btn-group-sm">
+								<button id="btn-undo" class="btn btn-outline-secondary" title="Undo (Ctrl + Z)" disabled>Undo</button>
+								<button id="btn-redo" class="btn btn-outline-secondary" title="Redo (Ctrl + Y)" disabled>Redo</button>
+							</div>
+						</div>
+					</div>
+					<div class="card-body">
+						<div class="border-bottom mb-4 pb-4">
+							<p class="mb-2 small text-body-secondary">Presets — add common filter sets:</p>
+							<div class="d-flex flex-wrap gap-2">
+								<button id="preset-eu" class="btn btn-outline-secondary btn-sm" title="50 Hz fundamental + 100 and 150 Hz harmonics, used in Europe, Asia, Africa, and Australia">EU mains hum <small class="opacity-75">(50 Hz)</small></button>
+								<button id="preset-us" class="btn btn-outline-secondary btn-sm" title="60 Hz fundamental + 120 and 180 Hz harmonics, used in the Americas and Japan">US mains hum <small class="opacity-75">(60 Hz)</small></button>
+								<button id="preset-rumble" class="btn btn-outline-secondary btn-sm" title="Highpass at 80 Hz — removes low-end rumble, wind noise, and handling noise">Cut rumble <small class="opacity-75">(↑ 80 Hz)</small></button>
+								<button id="preset-hiss" class="btn btn-outline-secondary btn-sm" title="Lowpass at 12 kHz — removes high-frequency hiss, tape noise, and room interference">Cut hiss <small class="opacity-75">(↓ 12 kHz)</small></button>
+							</div>
+						</div>
+						<div id="detection-results" class="border-bottom d-none mb-4 pb-4">
+							<div id="detection-list" class="align-items-center d-flex flex-wrap gap-2"></div>
+						</div>
+						<div class="align-items-end g-2 mb-2 row">
+							<div class="col-auto">
+								<label class="form-label mb-1 small" for="filter-type">Type</label>
+								<select id="filter-type" class="form-select form-select-sm">
+									<option value="notch">Notch</option>
+									<option value="highpass">Highpass</option>
+									<option value="lowpass">Lowpass</option>
+								</select>
+							</div>
+							<div class="col-auto">
+								<label class="form-label mb-1 small" for="filter-freq">Frequency (Hz)</label>
+								<input type="number" id="filter-freq" class="form-control form-control-sm" value="60" min="1" max="22000">
+							</div>
+							<div class="col-auto">
+								<label class="form-label mb-1 small" for="filter-q">Q / Resonance</label>
+								<input type="number" id="filter-q" class="form-control form-control-sm" value="30" min="0.01" max="1000" step="0.01">
+							</div>
+							<div class="col-auto">
+								<button id="btn-add-filter" class="btn btn-primary btn-sm">Add filter</button>
+							</div>
+						</div>
+						<div id="filter-list" class="d-flex flex-wrap gap-2">
+							<span class="small text-body-secondary">No filters added yet.</span>
+						</div>
+					</div>
+				</div>
+				<div class="align-items-center d-flex gap-2 mb-4">
+					<button id="btn-preview" class="btn btn-success">▶ Preview</button>
+					<button id="btn-stop" class="btn btn-outline-secondary d-none">■ Stop</button>
+					<div class="align-items-center d-flex gap-2 ms-auto">
+						<select id="export-format" class="form-select form-select-sm">
+							<option value="wav">WAV</option>
+							<option value="mp3">MP3 (128 kbps)</option>
+						</select>
+						<button id="btn-export" class="btn btn-primary">Export</button>
+					</div>
+				</div>
+			</div>
+			<details>
+				<summary class="h5 mb-4">About Audiokira</summary>
+				<p class="mb-2">Audiokira removes recurring frequency patterns—like electrical hum, HVAC noise, or tonal interference—from audio and video files, entirely in your browser. No files are uploaded anywhere.</p>
+				<div class="g-4 py-4 row">
+					<div class="col-md-6">
+						<h2 class="h6 mb-2">How to Use Audiokira</h2>
+						<ol class="mb-4 small">
+							<li class="mb-2"><strong>Load a file.</strong> Drop any audio or video file onto the page. The audio track is extracted automatically.</li>
+							<li class="mb-2"><strong>Read the spectrogram.</strong> Horizontal bands that persist across the full width are recurring frequencies. The Y axis runs from 20 Hz (bottom) to the file's Nyquist frequency (top) on a logarithmic scale; brighter color means louder.</li>
+							<li class="mb-2"><strong>Add filters.</strong> Click anywhere on the spectrogram to add a filter at that frequency immediately. Or use "Detect recurring bands" to auto-add all persistent tonal frequencies at once. Presets cover common mains hum and bass/treble cuts.</li>
+							<li class="mb-2"><strong>Preview.</strong> Click Preview to hear the result in real time. Filter changes apply immediately without stopping playback.</li>
+							<li class="mb-2"><strong>Optional: select a time range.</strong> Shift-drag on the waveform to limit filtering to a specific section. Preview plays the selection; Export applies filters only within it.</li>
+							<li><strong>Export.</strong> Choose WAV (lossless) or MP3, then click Export.</li>
+						</ol>
+						<h2 class="h6 mb-2">Tips</h2>
+						<ul class="mb-0 small">
+							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
+							<li class="mb-2">"Detect recurring bands" flags frequencies present in more than roughly a third of the file. The percentage shown is how often that frequency appeared above a noise floor.</li>
+							<li class="mb-2">Use <kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Y</kbd> (or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>) to undo and redo filter changes.</li>
+							<li>MP3 export requires an internet connection to load the encoding library.</li>
+						</ul>
+					</div>
+					<div class="col-md-6">
+						<h2 class="h6 mb-2">Limitations</h2>
+						<ul class="mb-4 small">
+							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Adjust Q and use Preview to minimize collateral effect.</li>
+							<li class="mb-2">Very large files may take several seconds to analyze.</li>
+							<li>Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
+						</ul>
+						<h2 class="h6 mb-2">Privacy</h2>
+						<p class="mb-0 small">Audiokira runs entirely in your browser. No audio, video, or any other data is uploaded to a server or shared with third parties. Files are read locally and never leave your device.</p>
+					</div>
+				</div>
+			</details>
+		</main>
+		<footer class="border-top container-fluid px-0 py-2">
+			<p class="mb-0 small text-body-secondary">A project by <a href="https://meiert.com/">Jens Oliver Meiert</a>.</p>
+		</footer>
+		<script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" integrity="sha384-xuasJXVcyv3hZq0eYpelEkBC8l4yufatZXDsKuyCU2rqfhDCb+ftuE/mSfZAteiK" crossorigin="anonymous"></script>
+		<script src="app.js"></script>
+	</body>
+</html>
