@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   PRESETS.forEach(preset => {
     document.getElementById(preset.id).addEventListener('click', () => {
-      preset.filters.forEach(f => addFilter(f.freq, f.q));
+      preset.filters.forEach(f => addFilter(f.freq, f.q, f.type));
     });
   });
 
