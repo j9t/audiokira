@@ -1,4 +1,4 @@
-# Audiokira
+# Audiokira (Beta)
 
 Audiokira is a browser-based audio frequency editor. It removes recurring frequency patterns—like electrical hum, HVAC noise, or tonal interference—from audio and video files, without uploading anything to a server.
 
