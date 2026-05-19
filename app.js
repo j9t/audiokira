@@ -3,19 +3,19 @@ const SPEC_COLS = 1024;
 
 const PRESETS = [
   {
-    id: 'presetEU',
+    id: 'preset-eu',
     filters: [{freq: 50, q: 30, type: 'notch'}, {freq: 100, q: 30, type: 'notch'}, {freq: 150, q: 30, type: 'notch'}],
   },
   {
-    id: 'presetUS',
+    id: 'preset-us',
     filters: [{freq: 60, q: 30, type: 'notch'}, {freq: 120, q: 30, type: 'notch'}, {freq: 180, q: 30, type: 'notch'}],
   },
   {
-    id: 'presetRumble',
+    id: 'preset-rumble',
     filters: [{freq: 80, q: 0.71, type: 'highpass'}],
   },
   {
-    id: 'presetHiss',
+    id: 'preset-hiss',
     filters: [{freq: 12000, q: 0.71, type: 'lowpass'}],
   },
 ];
@@ -63,31 +63,31 @@ let elBtnUndo, elBtnRedo;
 let elBtnPreview, elBtnStop, elBtnExport, elExportFormat;
 
 document.addEventListener('DOMContentLoaded', () => {
-  elDropZone = document.getElementById('dropZone');
-  elFileInput = document.getElementById('fileInput');
-  elAudioInfo = document.getElementById('audioInfo');
-  elFileName = document.getElementById('fileName');
-  elWaveformCanvas = document.getElementById('waveformCanvas');
-  elSpectrogramCanvas = document.getElementById('spectrogramCanvas');
-  elSpectrogramOverlay = document.getElementById('spectrogramOverlay');
-  elSpectrogramProgress = document.getElementById('spectrogramProgress');
-  elWaveformTime = document.getElementById('waveformTime');
-  elSelectionInfo = document.getElementById('selectionInfo');
-  elSelectionTimeLabel = document.getElementById('selectionTimeLabel');
-  elScrollbar = document.getElementById('spectrogramScrollbar');
-  elScrollThumb = document.getElementById('spectrogramScrollThumb');
-  elFilterFreq = document.getElementById('filterFreq');
-  elFilterQ = document.getElementById('filterQ');
-  elFilterType = document.getElementById('filterType');
-  elFilterList = document.getElementById('filterList');
-  elDetectionResults = document.getElementById('detectionResults');
-  elDetectionList = document.getElementById('detectionList');
-  elBtnUndo = document.getElementById('btnUndo');
-  elBtnRedo = document.getElementById('btnRedo');
-  elBtnPreview = document.getElementById('btnPreview');
-  elBtnStop = document.getElementById('btnStop');
-  elBtnExport = document.getElementById('btnExport');
-  elExportFormat = document.getElementById('exportFormat');
+  elDropZone = document.getElementById('drop-zone');
+  elFileInput = document.getElementById('file-input');
+  elAudioInfo = document.getElementById('audio-info');
+  elFileName = document.getElementById('file-name');
+  elWaveformCanvas = document.getElementById('waveform-canvas');
+  elSpectrogramCanvas = document.getElementById('spectrogram-canvas');
+  elSpectrogramOverlay = document.getElementById('spectrogram-overlay');
+  elSpectrogramProgress = document.getElementById('spectrogram-progress');
+  elWaveformTime = document.getElementById('waveform-time');
+  elSelectionInfo = document.getElementById('selection-info');
+  elSelectionTimeLabel = document.getElementById('selection-time-label');
+  elScrollbar = document.getElementById('spectrogram-scrollbar');
+  elScrollThumb = document.getElementById('spectrogram-scroll-thumb');
+  elFilterFreq = document.getElementById('filter-freq');
+  elFilterQ = document.getElementById('filter-q');
+  elFilterType = document.getElementById('filter-type');
+  elFilterList = document.getElementById('filter-list');
+  elDetectionResults = document.getElementById('detection-results');
+  elDetectionList = document.getElementById('detection-list');
+  elBtnUndo = document.getElementById('btn-undo');
+  elBtnRedo = document.getElementById('btn-redo');
+  elBtnPreview = document.getElementById('btn-preview');
+  elBtnStop = document.getElementById('btn-stop');
+  elBtnExport = document.getElementById('btn-export');
+  elExportFormat = document.getElementById('export-format');
 
   // File input
   elDropZone.addEventListener('click', () => elFileInput.click());
@@ -107,8 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Reset
-  document.getElementById('btnReset').addEventListener('click', resetState);
-  document.getElementById('btnResetFilters').addEventListener('click', () => {
+  document.getElementById('btn-reset').addEventListener('click', resetState);
+  document.getElementById('btn-reset-filters').addEventListener('click', () => {
     filters = [];
     saveHistory();
     renderFilterList();
@@ -120,9 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
   elWaveformCanvas.addEventListener('mousedown', handleMouseDown);
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', handleMouseUp);
-  document.getElementById('btnZoomIn').addEventListener('click', () => zoomAround(0.5, 0.5));
-  document.getElementById('btnZoomOut').addEventListener('click', () => zoomAround(0.5, 2));
-  document.getElementById('btnZoomReset').addEventListener('click', resetZoom);
+  document.getElementById('btn-zoom-in').addEventListener('click', () => zoomAround(0.5, 0.5));
+  document.getElementById('btn-zoom-out').addEventListener('click', () => zoomAround(0.5, 2));
+  document.getElementById('btn-zoom-reset').addEventListener('click', resetZoom);
 
   // Spectrogram interaction
   elSpectrogramCanvas.addEventListener('click', handleSpectrogramClick);
@@ -132,10 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
   elScrollbar.addEventListener('mousedown', handleScrollbarMouseDown);
 
   // Selection
-  document.getElementById('btnClearSel').addEventListener('click', clearSelection);
+  document.getElementById('btn-clear-sel').addEventListener('click', clearSelection);
 
   // Filters
-  document.getElementById('btnAddFilter').addEventListener('click', () => {
+  document.getElementById('btn-add-filter').addEventListener('click', () => {
     const freq = parseFloat(elFilterFreq.value);
     const q = parseFloat(elFilterQ.value);
     const type = elFilterType.value;
@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
   elFilterType.addEventListener('change', () => {
     elFilterQ.value = elFilterType.value === 'notch' ? 30 : 0.71;
   });
-  document.getElementById('btnDetect').addEventListener('click', () => {
+  document.getElementById('btn-detect').addEventListener('click', () => {
     const bands = detectBands();
     if (bands.length > 0) {
       const q = parseFloat(elFilterQ.value) || 30;
@@ -237,7 +237,7 @@ function resetState() {
   elFileInput.value = '';
 }
 
-// Waveform
+// --- Waveform ---
 
 function drawWaveform() {
   if (!srcBuffer) return;
@@ -309,7 +309,7 @@ function formatTime(s) {
   return `${m}:${sec}`;
 }
 
-// Waveform / spectrogram interaction
+// --- Waveform / spectrogram interaction ---
 
 function handleWheel(event) {
   event.preventDefault();
@@ -434,14 +434,14 @@ function handleMouseUp() {
   if (!isSelecting) elWaveformCanvas.style.cursor = '';
 }
 
-// Scrollbar
+// --- Scrollbar ---
 
 function updateScrollbar() {
   elScrollThumb.style.left = (viewStart * 100) + '%';
   elScrollThumb.style.width = ((viewEnd - viewStart) * 100) + '%';
 }
 
-// Selection
+// --- Selection ---
 
 function updateSelectionInfo() {
   if (selStart === null || selEnd === null) {
@@ -460,7 +460,7 @@ function clearSelection() {
   if (srcBuffer) drawWaveform();
 }
 
-// Spectrogram computation
+// --- Spectrogram computation ---
 
 async function computeSpectrogram() {
   const data = srcBuffer.getChannelData(0);
@@ -536,7 +536,7 @@ function fft(signal) {
   return mags;
 }
 
-// Spectrogram drawing
+// --- Spectrogram drawing ---
 
 function drawSpectrogram() {
   if (!specMags || !srcBuffer) return;
@@ -651,7 +651,7 @@ function handleSpectrogramClick(event) {
   addFilter(freq, q, type);
 }
 
-// Band detection
+// --- Band detection ---
 
 function detectBands() {
   if (!specMags || !srcBuffer) return [];
@@ -702,19 +702,19 @@ function detectBands() {
 
 function renderDetectionResults(bands) {
   if (!bands || bands.length === 0) {
-    elDetectionList.innerHTML = '<span class="text-body-secondary small">No persistent tonal frequencies detected in this file.</span>';
+    elDetectionList.innerHTML = '<span class="small text-body-secondary">No persistent tonal frequencies detected in this file.</span>';
   } else {
     const count = bands.length;
     elDetectionList.innerHTML =
-      `<span class="small text-body-secondary me-1">${count} filter${count !== 1 ? 's' : ''} added:</span>` +
+      `<span class="me-1 small text-body-secondary">${count} filter${count !== 1 ? 's' : ''} added:</span>` +
       bands.map(b =>
-        `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${b.freq} Hz <span class="opacity-75">${Math.round(b.persistence * 100)}%</span></span>`
+        `<span class="badge border border-success-subtle bg-success-subtle text-success-emphasis">${b.freq} Hz <span class="opacity-75">${Math.round(b.persistence * 100)}%</span></span>`
       ).join('');
   }
   elDetectionResults.classList.remove('d-none');
 }
 
-// Filters
+// --- Filters ---
 
 function addFilter(freq, q, type = 'notch') {
   if (filters.some(f => f.freq === freq && f.type === type)) return;
@@ -742,13 +742,13 @@ function filterLabel(f) {
 
 function renderFilterList() {
   if (filters.length === 0) {
-    elFilterList.innerHTML = '<span class="text-body-secondary small">No filters added yet.</span>';
+    elFilterList.innerHTML = '<span class="small text-body-secondary">No filters added yet.</span>';
     return;
   }
   elFilterList.innerHTML = filters.map((f, i) =>
-    `<span class="badge bg-secondary d-inline-flex align-items-center gap-1" style="font-size:.85em">
+    `<span class="align-items-center badge bg-secondary d-inline-flex gap-1">
       ${filterLabel(f)}
-      <button type="button" class="btn-close btn-close-white ms-1" style="font-size:.55em" aria-label="Remove filter" data-idx="${i}"></button>
+      <button type="button" class="btn-close btn-close-white ms-1" aria-label="Remove filter" data-idx="${i}"></button>
     </span>`
   ).join('');
   elFilterList.querySelectorAll('.btn-close').forEach(btn => {
@@ -756,7 +756,7 @@ function renderFilterList() {
   });
 }
 
-// History
+// --- History ---
 
 function saveHistory() {
   history = history.slice(0, historyIndex + 1);
@@ -788,7 +788,7 @@ function updateUndoRedoButtons() {
   elBtnRedo.disabled = historyIndex >= history.length - 1;
 }
 
-// Audio processing
+// --- Audio processing ---
 
 function buildFilterGraph(ctx, source) {
   let node = source;
@@ -846,7 +846,7 @@ async function applyFiltersWithSelection() {
   return output;
 }
 
-// Preview
+// --- Preview ---
 
 function startPreview(offsetOverride) {
   stopPreview();
@@ -904,7 +904,7 @@ function stopPreview() {
   elBtnStop.classList.add('d-none');
 }
 
-// Export
+// --- Export ---
 
 async function exportAudio() {
   if (!srcBuffer) return;
