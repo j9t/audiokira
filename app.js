@@ -606,7 +606,7 @@ function drawSpectrogramLabels(ctx, width, height, sampleRate) {
     ctx.beginPath();
     ctx.moveTo(0, y); ctx.lineTo(width, y);
     ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillStyle = 'rgba(255,255,255)';
     ctx.fillText(freq >= 1000 ? `${freq / 1000}k` : `${freq}`, 4, y - 2);
   }
 

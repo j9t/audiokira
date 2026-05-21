@@ -48,7 +48,7 @@
 			}
 
 			#spectrogram-canvas {
-				height: 220px;
+				height: 330px;
 			}
 
 			#spectrogram-overlay {
@@ -99,7 +99,7 @@
 					</div>
 				</div>
 				<div class="card mb-2">
-					<div class="align-items-center card-header d-flex justify-content-between">
+					<div class="align-items-center card-header d-flex gap-2 justify-content-between">
 						<span>Waveform</span>
 						<div class="align-items-center d-flex gap-2">
 							<span class="d-none d-sm-inline small text-body-secondary">Scroll to zoom · drag to pan · shift-drag to select</span>
@@ -123,7 +123,7 @@
 					</div>
 				</div>
 				<div class="card mb-2">
-					<div class="align-items-center card-header d-flex justify-content-between">
+					<div class="align-items-center card-header d-flex gap-2 justify-content-between">
 						<span>Spectrogram</span>
 						<span class="small text-body-secondary">Click to add notch filter at that frequency</span>
 					</div>
@@ -141,7 +141,7 @@
 					</div>
 				</div>
 				<div class="card mb-4">
-					<div class="align-items-center card-header d-flex justify-content-between">
+					<div class="align-items-center card-header d-flex gap-2 justify-content-between">
 						<span>Notch Filters</span>
 						<div class="align-items-center d-flex gap-2">
 							<button id="btn-detect" class="btn btn-outline-info btn-sm">Detect recurring bands</button>
@@ -153,12 +153,12 @@
 					</div>
 					<div class="card-body">
 						<div class="border-bottom mb-4 pb-4">
-							<p class="mb-2 small text-body-secondary">Presets — add common filter sets:</p>
+							<p class="mb-2 small text-body-secondary">Presets—add common filter sets:</p>
 							<div class="d-flex flex-wrap gap-2">
 								<button id="preset-eu" class="btn btn-outline-secondary btn-sm" title="50 Hz fundamental + 100 and 150 Hz harmonics, used in Europe, Asia, Africa, and Australia">EU mains hum <small class="opacity-75">(50 Hz)</small></button>
 								<button id="preset-us" class="btn btn-outline-secondary btn-sm" title="60 Hz fundamental + 120 and 180 Hz harmonics, used in the Americas and Japan">US mains hum <small class="opacity-75">(60 Hz)</small></button>
-								<button id="preset-rumble" class="btn btn-outline-secondary btn-sm" title="Highpass at 80 Hz — removes low-end rumble, wind noise, and handling noise">Cut rumble <small class="opacity-75">(↑ 80 Hz)</small></button>
-								<button id="preset-hiss" class="btn btn-outline-secondary btn-sm" title="Lowpass at 12 kHz — removes high-frequency hiss, tape noise, and room interference">Cut hiss <small class="opacity-75">(↓ 12 kHz)</small></button>
+								<button id="preset-rumble" class="btn btn-outline-secondary btn-sm" title="Highpass at 80 Hz—removes low-end rumble, wind noise, and handling noise">Cut rumble <small class="opacity-75">(↑ 80 Hz)</small></button>
+								<button id="preset-hiss" class="btn btn-outline-secondary btn-sm" title="Lowpass at 12 kHz—removes high-frequency hiss, tape noise, and room interference">Cut hiss <small class="opacity-75">(↓ 12 kHz)</small></button>
 							</div>
 						</div>
 						<div id="detection-results" class="border-bottom d-none mb-4 pb-4">
