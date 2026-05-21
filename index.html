@@ -204,30 +204,30 @@
 			</div>
 			<details>
 				<summary class="h5 mb-4">About Audiokira</summary>
-				<p class="mb-2">Audiokira removes recurring frequency patterns—like electrical hum, HVAC noise, or tonal interference—from audio and video files, entirely in your browser. No files are uploaded anywhere.</p>
+				<p class="mb-2">Audiokira removes recurring frequency patterns—like electrical hum, HVAC noise, or tonal interference—from audio and video files, entirely in your browser.</p>
 				<div class="g-4 py-4 row">
 					<div class="col-md-6">
 						<h2 class="h6 mb-2">How to Use Audiokira</h2>
 						<ol class="mb-4 small">
 							<li class="mb-2"><strong>Load a file.</strong> Drop any audio or video file onto the page. The audio track is extracted automatically.</li>
-							<li class="mb-2"><strong>Read the spectrogram.</strong> Horizontal bands that persist across the full width are recurring frequencies. The Y axis runs from 20 Hz (bottom) to the file's Nyquist frequency (top) on a logarithmic scale; brighter color means louder.</li>
-							<li class="mb-2"><strong>Add filters.</strong> Click anywhere on the spectrogram to add a filter at that frequency immediately. Or use "Detect recurring bands" to auto-add all persistent tonal frequencies at once. Presets cover common mains hum and bass/treble cuts.</li>
-							<li class="mb-2"><strong>Preview.</strong> Click Preview to hear the result in real time. Filter changes apply immediately without stopping playback.</li>
-							<li class="mb-2"><strong>Optional: select a time range.</strong> Shift-drag on the waveform to limit filtering to a specific section. Preview plays the selection; Export applies filters only within it.</li>
+							<li class="mb-2"><strong>Read the spectrogram.</strong> Horizontal bands that persist across the full width are recurring frequencies. The Y axis runs from 20 Hz (bottom) to the file’s <a href="https://en.wikipedia.org/wiki/Nyquist_frequency">Nyquist frequency</a> (top) on a logarithmic scale; brighter color means louder.</li>
+							<li class="mb-2"><strong>Add filters.</strong> Click anywhere on the spectrogram to add a filter at that frequency immediately. Or use “Detect recurring bands” to auto-add all persistent tonal frequencies at once. Presets cover common mains hum and bass/treble cuts.</li>
+							<li class="mb-2"><strong>Preview.</strong> Click “Preview” to hear the result in real time. Filter changes apply immediately without stopping playback.</li>
+							<li class="mb-2"><strong>Optional: Select a time range.</strong> Shift-drag on the waveform to limit filtering to a specific section. “Preview” plays the selection; “Export” applies filters only within it.</li>
 							<li><strong>Export.</strong> Choose WAV (lossless) or MP3, then click Export.</li>
 						</ol>
 						<h2 class="h6 mb-2">Tips</h2>
 						<ul class="mb-0 small">
 							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
-							<li class="mb-2">"Detect recurring bands" flags frequencies present in more than roughly a third of the file. The percentage shown is how often that frequency appeared above a noise floor.</li>
+							<li class="mb-2">“Detect recurring bands” flags frequencies present in more than roughly a third of the file. The percentage shown is how often that frequency appeared above a noise floor.</li>
 							<li class="mb-2">Use <kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Y</kbd> (or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>) to undo and redo filter changes.</li>
-							<li>MP3 export requires an internet connection to load the encoding library.</li>
+							<li>MP3 export requires an Internet connection to load the encoding library.</li>
 						</ul>
 					</div>
 					<div class="col-md-6">
 						<h2 class="h6 mb-2">Limitations</h2>
 						<ul class="mb-4 small">
-							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Adjust Q and use Preview to minimize collateral effect.</li>
+							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Adjust Q and use “Preview” to minimize collateral effect.</li>
 							<li class="mb-2">Very large files may take several seconds to analyze.</li>
 							<li>Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
 						</ul>
