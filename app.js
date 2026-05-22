@@ -1017,11 +1017,15 @@ function startPreview(offsetOverride) {
     const srcDirect = playbackCtx.createBufferSource();
     srcDirect.buffer = srcBuffer;
 
+    const masterGain = playbackCtx.createGain();
+    masterGain.gain.value = Math.pow(10, gainDb / 20);
+    masterGain.connect(playbackCtx.destination);
+
     const negGain = playbackCtx.createGain();
     negGain.gain.value = -1;
     buildFilterChain(playbackCtx, srcFiltered).connect(negGain);
-    negGain.connect(playbackCtx.destination);
-    srcDirect.connect(playbackCtx.destination);
+    negGain.connect(masterGain);
+    srcDirect.connect(masterGain);
 
     if (selDuration !== undefined) {
       srcFiltered.start(0, offset, selDuration);
