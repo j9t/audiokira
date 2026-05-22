@@ -47,6 +47,10 @@
 				width: 110px;
 			}
 
+			#waveform-canvas {
+				height: 120px;
+			}
+
 			#spectrogram-canvas {
 				height: 330px;
 			}
@@ -70,8 +74,8 @@
 				position: absolute;
 			}
 
-			#waveform-canvas {
-				height: 120px;
+			#output-gain {
+				width: 80px;
 			}
 		</style>
 	</head>
@@ -125,7 +129,11 @@
 				<div class="card mb-2">
 					<div class="align-items-center card-header d-flex gap-2 justify-content-between">
 						<span>Spectrogram</span>
-						<span class="small text-body-secondary">Click to add notch filter at that frequency</span>
+						<div class="align-items-center d-flex gap-2">
+							<span id="spectrogram-hover" class="font-monospace small text-body-secondary"></span>
+							<button id="btn-scale-toggle" class="btn btn-outline-secondary btn-sm">Log</button>
+							<span class="small text-body-secondary">Click to add notch filter at that frequency</span>
+						</div>
 					</div>
 					<div class="card-body p-0 position-relative">
 						<canvas id="spectrogram-canvas" class="w-100"></canvas>
@@ -153,6 +161,13 @@
 					</div>
 					<div class="card-body">
 						<div class="border-bottom mb-4 pb-4">
+							<p class="mb-2 small text-body-secondary">A/B comparison—switch between two filter sets:</p>
+							<div class="btn-group btn-group-sm" role="group" aria-label="A/B filter slots">
+								<button id="btn-slot-a" class="btn btn-secondary">A</button>
+								<button id="btn-slot-b" class="btn btn-outline-secondary">B</button>
+							</div>
+						</div>
+						<div class="border-bottom mb-4 pb-4">
 							<p class="mb-2 small text-body-secondary">Presets—add common filter sets:</p>
 							<div class="d-flex flex-wrap gap-2">
 								<button id="preset-eu" class="btn btn-outline-secondary btn-sm" title="50 Hz fundamental + 100 and 150 Hz harmonics, used in Europe, Asia, Africa, and Australia">EU mains hum <small class="opacity-75">(50 Hz)</small></button>
@@ -160,9 +175,6 @@
 								<button id="preset-rumble" class="btn btn-outline-secondary btn-sm" title="Highpass at 80 Hz—removes low-end rumble, wind noise, and handling noise">Cut rumble <small class="opacity-75">(↑ 80 Hz)</small></button>
 								<button id="preset-hiss" class="btn btn-outline-secondary btn-sm" title="Lowpass at 12 kHz—removes high-frequency hiss, tape noise, and room interference">Cut hiss <small class="opacity-75">(↓ 12 kHz)</small></button>
 							</div>
-						</div>
-						<div id="detection-results" class="border-bottom d-none mb-4 pb-4">
-							<div id="detection-list" class="align-items-center d-flex flex-wrap gap-2"></div>
 						</div>
 						<div class="align-items-end g-2 mb-2 row">
 							<div class="col-auto">
@@ -188,11 +200,22 @@
 						<div id="filter-list" class="d-flex flex-wrap gap-2">
 							<span class="small text-body-secondary">No filters added yet.</span>
 						</div>
+						<div class="border-top mt-4 pt-4">
+							<p class="mb-2 small text-body-secondary">Saved presets—click to add filters:</p>
+							<div id="custom-preset-list" class="d-flex flex-wrap gap-2 mb-2"></div>
+							<button id="btn-save-preset" class="btn btn-outline-secondary btn-sm">Save current filters as preset…</button>
+						</div>
 					</div>
 				</div>
-				<div class="align-items-center d-flex gap-2 mb-4">
+				<div class="align-items-center d-flex flex-wrap gap-2 mb-4">
 					<button id="btn-preview" class="btn btn-success">▶ Preview</button>
 					<button id="btn-stop" class="btn btn-outline-secondary d-none">■ Stop</button>
+					<button id="btn-listen-noise" class="btn btn-outline-secondary" title="Hear what the filters remove instead of the cleaned signal. Export always produces the cleaned audio regardless of this toggle.">Noise only</button>
+					<div class="align-items-center d-flex gap-2">
+						<label class="form-label mb-0 small text-body-secondary" for="output-gain">Gain</label>
+						<input type="range" id="output-gain" class="form-range" min="-12" max="12" step="0.5" value="0">
+						<span id="output-gain-label" class="font-monospace small text-body-secondary">0 dB</span>
+					</div>
 					<div class="align-items-center d-flex gap-2 ms-auto">
 						<select id="export-format" class="form-select form-select-sm">
 							<option value="wav">WAV</option>
@@ -214,22 +237,28 @@
 							<li class="mb-2"><strong>Add filters.</strong> Click anywhere on the spectrogram to add a filter at that frequency immediately. Or use “Detect recurring bands” to auto-add all persistent tonal frequencies at once. Presets cover common mains hum and bass/treble cuts.</li>
 							<li class="mb-2"><strong>Preview.</strong> Click “Preview” to hear the result in real time. Filter changes apply immediately without stopping playback.</li>
 							<li class="mb-2"><strong>Optional: Select a time range.</strong> Shift-drag on the waveform to limit filtering to a specific section. “Preview” plays the selection; “Export” applies filters only within it.</li>
-							<li><strong>Export.</strong> Choose WAV (lossless) or MP3, then click Export.</li>
+							<li><strong>Export.</strong> Choose WAV (lossless) or MP3, then click “Export.”</li>
 						</ol>
-						<h2 class="h6 mb-2">Tips</h2>
-						<ul class="mb-0 small">
-							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
-							<li class="mb-2">“Detect recurring bands” flags frequencies present in more than roughly a third of the file. The percentage shown is how often that frequency appeared above a noise floor.</li>
-							<li class="mb-2">Use <kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Y</kbd> (or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>) to undo and redo filter changes.</li>
-							<li>MP3 export requires an Internet connection to load the encoding library.</li>
+						<h2 class="h6 mb-2">Limitations</h2>
+						<ul class="mb-4 small">
+							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Use “Noise only” to hear what is removed, then adjust Q and preview normally to minimize collateral effect.</li>
+							<li class="mb-2">Very large files may take several seconds to analyze.</li>
+							<li>Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
 						</ul>
 					</div>
 					<div class="col-md-6">
-						<h2 class="h6 mb-2">Limitations</h2>
+						<h2 class="h6 mb-2">Tips</h2>
 						<ul class="mb-4 small">
-							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Adjust Q and use “Preview” to minimize collateral effect.</li>
-							<li class="mb-2">Very large files may take several seconds to analyze.</li>
-							<li>Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
+							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
+							<li class="mb-2">”Detect recurring bands” flags frequencies present in more than roughly a third of the file. The percentage shown is how often that frequency appeared above a noise floor.</li>
+							<li class="mb-2">Hovering over the spectrogram shows the frequency and nearest musical note. Clicking snaps to the strongest nearby peak.</li>
+							<li class=”mb-2”>”Noise only” inverts the filter path so you hear exactly what is removed—useful for verifying nothing intentional is being cut. Export always produces the cleaned signal regardless of this toggle.</li>
+							<li class="mb-2">A/B slots store two independent filter sets; clicking “A” or “B” saves the current set and loads the other for quick comparison.</li>
+							<li class="mb-2">The Gain slider compensates for volume loss from heavy filtering and is reflected in the export.</li>
+							<li class="mb-2">Use “Save current filters as preset…” to store a filter set in your browser for reuse across sessions.</li>
+							<li class="mb-2">Log/Linear switches the spectrogram Y axis—linear makes evenly-spaced hum harmonics easier to spot.</li>
+							<li class="mb-2">Use <kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Y</kbd> (or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>) to undo and redo filter changes.</li>
+							<li>MP3 export requires an Internet connection to load the encoding library.</li>
 						</ul>
 						<h2 class="h6 mb-2">Privacy</h2>
 						<p class="mb-0 small">Audiokira runs entirely in your browser. No audio, video, or any other data is uploaded to a server or shared with third parties. Files are read locally and never leave your device.</p>

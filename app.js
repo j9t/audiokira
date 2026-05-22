@@ -31,6 +31,15 @@ let viewStart = 0;
 let viewEnd = 1;
 let filters = [];
 let previewSource = null;
+let previewAuxSource = null;
+
+// Feature state
+let specLinear = false;
+let gainDb = 0;
+let listenNoise = false;
+let filtersA = [];
+let filtersB = [];
+let activeSlot = 'a';
 
 // Selection state
 let selStart = null;
@@ -55,13 +64,14 @@ let historyIndex = -1;
 // DOM refs
 let elDropZone, elFileInput, elAudioInfo, elFileName;
 let elWaveformCanvas, elSpectrogramCanvas;
-let elSpectrogramOverlay, elSpectrogramProgress, elWaveformTime;
+let elSpectrogramOverlay, elSpectrogramProgress, elSpectrogramHover, elWaveformTime;
 let elSelectionInfo, elSelectionTimeLabel;
 let elScrollbar, elScrollThumb;
 let elFilterFreq, elFilterQ, elFilterType, elFilterList;
-let elDetectionResults, elDetectionList;
 let elBtnUndo, elBtnRedo;
 let elBtnPreview, elBtnStop, elBtnExport, elExportFormat;
+let elBtnScaleToggle, elOutputGain, elOutputGainLabel, elBtnListenNoise;
+let elBtnSlotA, elBtnSlotB, elCustomPresetList, elBtnSavePreset;
 
 document.addEventListener('DOMContentLoaded', () => {
   elDropZone = document.getElementById('drop-zone');
@@ -72,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
   elSpectrogramCanvas = document.getElementById('spectrogram-canvas');
   elSpectrogramOverlay = document.getElementById('spectrogram-overlay');
   elSpectrogramProgress = document.getElementById('spectrogram-progress');
+  elSpectrogramHover = document.getElementById('spectrogram-hover');
   elWaveformTime = document.getElementById('waveform-time');
   elSelectionInfo = document.getElementById('selection-info');
   elSelectionTimeLabel = document.getElementById('selection-time-label');
@@ -81,14 +92,20 @@ document.addEventListener('DOMContentLoaded', () => {
   elFilterQ = document.getElementById('filter-q');
   elFilterType = document.getElementById('filter-type');
   elFilterList = document.getElementById('filter-list');
-  elDetectionResults = document.getElementById('detection-results');
-  elDetectionList = document.getElementById('detection-list');
   elBtnUndo = document.getElementById('btn-undo');
   elBtnRedo = document.getElementById('btn-redo');
   elBtnPreview = document.getElementById('btn-preview');
   elBtnStop = document.getElementById('btn-stop');
   elBtnExport = document.getElementById('btn-export');
   elExportFormat = document.getElementById('export-format');
+  elBtnScaleToggle = document.getElementById('btn-scale-toggle');
+  elOutputGain = document.getElementById('output-gain');
+  elOutputGainLabel = document.getElementById('output-gain-label');
+  elBtnListenNoise = document.getElementById('btn-listen-noise');
+  elBtnSlotA = document.getElementById('btn-slot-a');
+  elBtnSlotB = document.getElementById('btn-slot-b');
+  elCustomPresetList = document.getElementById('custom-preset-list');
+  elBtnSavePreset = document.getElementById('btn-save-preset');
 
   // File input
   elDropZone.addEventListener('click', () => elFileInput.click());
@@ -153,7 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const q = parseFloat(elFilterQ.value) || 30;
       bands.forEach(b => addFilter(b.freq, q));
     }
-    renderDetectionResults(bands);
   });
 
   PRESETS.forEach(preset => {
@@ -177,6 +193,49 @@ document.addEventListener('DOMContentLoaded', () => {
   elBtnPreview.addEventListener('click', () => startPreview());
   elBtnStop.addEventListener('click', stopPreview);
   elBtnExport.addEventListener('click', exportAudio);
+
+  // Scale toggle
+  elBtnScaleToggle.addEventListener('click', () => {
+    specLinear = !specLinear;
+    elBtnScaleToggle.textContent = specLinear ? 'Linear' : 'Log';
+    if (srcBuffer) drawSpectrogram();
+  });
+
+  // Spectrogram hover
+  elSpectrogramCanvas.addEventListener('mousemove', (event) => {
+    if (!srcBuffer) return;
+    const rect = elSpectrogramCanvas.getBoundingClientRect();
+    const y = event.clientY - rect.top;
+    const hz = yToHz(y, rect.height, srcBuffer.sampleRate);
+    const hzDisplay = hz >= 1000 ? `${(hz / 1000).toFixed(2).replace(/\.?0+$/, '')}k` : Math.round(hz);
+    elSpectrogramHover.textContent = `${hzDisplay} Hz · ${hzToNote(hz)}`;
+  });
+  elSpectrogramCanvas.addEventListener('mouseleave', () => {
+    elSpectrogramHover.textContent = '';
+  });
+
+  // Output gain
+  elOutputGain.addEventListener('input', () => {
+    gainDb = parseFloat(elOutputGain.value);
+    elOutputGainLabel.textContent = `${gainDb > 0 ? '+' : ''}${gainDb} dB`;
+    restartPreview();
+  });
+
+  // Noise-only toggle
+  elBtnListenNoise.addEventListener('click', () => {
+    listenNoise = !listenNoise;
+    elBtnListenNoise.classList.toggle('btn-warning', listenNoise);
+    elBtnListenNoise.classList.toggle('btn-outline-secondary', !listenNoise);
+    restartPreview();
+  });
+
+  // A/B slots
+  elBtnSlotA.addEventListener('click', () => switchSlot('a'));
+  elBtnSlotB.addEventListener('click', () => switchSlot('b'));
+
+  // Custom presets
+  elBtnSavePreset.addEventListener('click', saveCustomPreset);
+  renderCustomPresets();
 
   // Resize
   new ResizeObserver(() => {
@@ -217,10 +276,14 @@ async function loadFile(file) {
   viewStart = 0;
   viewEnd = 1;
   filters = [];
+  filtersA = [];
+  filtersB = [];
+  activeSlot = 'a';
   selStart = null;
   selEnd = null;
   history = [[]];
   historyIndex = 0;
+  updateSlotButtons();
 
   elFilterFreq.max = Math.round(srcBuffer.sampleRate / 2);
   renderFilterList();
@@ -229,7 +292,6 @@ async function loadFile(file) {
   drawWaveform();
   updateScrollbar();
 
-  elDetectionResults.classList.add('d-none');
   elSpectrogramProgress.textContent = 'Analyzing…';
   await computeSpectrogram(token);
   if (token !== loadToken) return;
@@ -245,16 +307,26 @@ function resetState() {
   viewStart = 0;
   viewEnd = 1;
   filters = [];
+  filtersA = [];
+  filtersB = [];
+  activeSlot = 'a';
   selStart = null;
   selEnd = null;
   history = [];
   historyIndex = -1;
+  listenNoise = false;
+  gainDb = 0;
+  elOutputGain.value = 0;
+  elOutputGainLabel.textContent = '0 dB';
+  elBtnListenNoise.classList.remove('btn-warning');
+  elBtnListenNoise.classList.add('btn-outline-secondary');
+  updateSlotButtons();
   elAudioInfo.classList.add('d-none');
   elDropZone.classList.remove('d-none');
   elFileInput.value = '';
 }
 
-// --- Waveform ---
+// Waveform
 
 function drawWaveform() {
   if (!srcBuffer) return;
@@ -326,7 +398,7 @@ function formatTime(s) {
   return `${m}:${sec}`;
 }
 
-// --- Waveform / spectrogram interaction ---
+// Waveform / spectrogram interaction
 
 function handleWheel(event) {
   event.preventDefault();
@@ -451,14 +523,14 @@ function handleMouseUp() {
   if (!isSelecting) elWaveformCanvas.style.cursor = '';
 }
 
-// --- Scrollbar ---
+// Scrollbar
 
 function updateScrollbar() {
   elScrollThumb.style.left = (viewStart * 100) + '%';
   elScrollThumb.style.width = ((viewEnd - viewStart) * 100) + '%';
 }
 
-// --- Selection ---
+// Selection
 
 function updateSelectionInfo() {
   if (selStart === null || selEnd === null) {
@@ -477,7 +549,7 @@ function clearSelection() {
   if (srcBuffer) drawWaveform();
 }
 
-// --- Spectrogram computation ---
+// Spectrogram computation
 
 async function computeSpectrogram(token) {
   const data = srcBuffer.getChannelData(0);
@@ -554,7 +626,7 @@ function fft(signal) {
   return mags;
 }
 
-// --- Spectrogram drawing ---
+// Spectrogram drawing
 
 function drawSpectrogram() {
   if (!specMags || !srcBuffer) return;
@@ -592,7 +664,15 @@ function drawSpectrogram() {
 }
 
 function drawSpectrogramLabels(ctx, width, height, sampleRate) {
-  const freqs = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
+  const maxHz = sampleRate / 2;
+  let freqs;
+  if (specLinear) {
+    const step = maxHz <= 8000 ? 1000 : maxHz <= 16000 ? 2000 : 4000;
+    freqs = [];
+    for (let f = step; f < maxHz; f += step) freqs.push(f);
+  } else {
+    freqs = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
+  }
   ctx.font = '10px monospace';
   ctx.textAlign = 'left';
 
@@ -638,6 +718,7 @@ function drawSpectrogramLabels(ctx, width, height, sampleRate) {
 function yToHz(y, height, sampleRate) {
   const minHz = 20;
   const maxHz = sampleRate / 2;
+  if (specLinear) return minHz + (1 - y / height) * (maxHz - minHz);
   return minHz * Math.pow(maxHz / minHz, 1 - y / height);
 }
 
@@ -646,7 +727,38 @@ function hzToY(hz, height, sampleRate) {
   const maxHz = sampleRate / 2;
   if (hz <= minHz) return height;
   if (hz >= maxHz) return 0;
+  if (specLinear) return Math.round((1 - (hz - minHz) / (maxHz - minHz)) * height);
   return Math.round((1 - Math.log(hz / minHz) / Math.log(maxHz / minHz)) * height);
+}
+
+function hzToNote(hz) {
+  if (hz <= 0) return '';
+  const A4 = 440;
+  const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+  const C0 = A4 * Math.pow(2, -(4 + 9 / 12));
+  const exact = 12 * Math.log2(hz / C0);
+  const semitone = Math.round(exact);
+  const noteIndex = ((semitone % 12) + 12) % 12;
+  const octave = Math.floor(semitone / 12);
+  const cents = Math.round((exact - semitone) * 100);
+  return noteNames[noteIndex] + octave + (cents !== 0 ? ` ${cents > 0 ? '+' : ''}${cents}¢` : '');
+}
+
+function snapToPeak(clickedY, height, sampleRate) {
+  if (!specMags) return null;
+  const numBins = FFT_SIZE / 2;
+  const window = 15;
+  let bestBin = -1;
+  let bestScore = -Infinity;
+  for (let dy = -window; dy <= window; dy++) {
+    const y = Math.max(0, Math.min(height - 1, clickedY + dy));
+    const bin = Math.min(Math.round(yToHz(y, height, sampleRate) * FFT_SIZE / sampleRate), numBins - 1);
+    if (bin < 1) continue;
+    let sum = 0;
+    for (let col = 0; col < SPEC_COLS; col++) sum += specMags[col * numBins + bin];
+    if (sum > bestScore) { bestScore = sum; bestBin = bin; }
+  }
+  return bestBin >= 1 ? Math.round(bestBin * sampleRate / FFT_SIZE) : null;
 }
 
 function spectrogramColor(t) {
@@ -661,14 +773,17 @@ function handleSpectrogramClick(event) {
   if (!srcBuffer) return;
   const rect = elSpectrogramCanvas.getBoundingClientRect();
   const y = event.clientY - rect.top;
-  const freq = Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), Math.round(yToHz(y, rect.height, srcBuffer.sampleRate))));
+  const snapped = snapToPeak(y, rect.height, srcBuffer.sampleRate);
+  const freq = snapped !== null
+    ? Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), snapped))
+    : Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), Math.round(yToHz(y, rect.height, srcBuffer.sampleRate))));
   const q = parseFloat(elFilterQ.value) || 30;
   const type = elFilterType.value;
   elFilterFreq.value = freq;
   addFilter(freq, q, type);
 }
 
-// --- Band detection ---
+// Band detection
 
 function detectBands() {
   if (!specMags || !srcBuffer) return [];
@@ -717,21 +832,7 @@ function detectBands() {
   return candidates.slice(0, 8);
 }
 
-function renderDetectionResults(bands) {
-  if (!bands || bands.length === 0) {
-    elDetectionList.innerHTML = '<span class="small text-body-secondary">No persistent tonal frequencies detected in this file.</span>';
-  } else {
-    const count = bands.length;
-    elDetectionList.innerHTML =
-      `<span class="me-1 small text-body-secondary">${count} filter${count !== 1 ? 's' : ''} added:</span>` +
-      bands.map(b =>
-        `<span class="badge border border-success-subtle bg-success-subtle text-success-emphasis">${b.freq} Hz <span class="opacity-75">${Math.round(b.persistence * 100)}%</span></span>`
-      ).join('');
-  }
-  elDetectionResults.classList.remove('d-none');
-}
-
-// --- Filters ---
+// Filters
 
 function addFilter(freq, q, type = 'notch') {
   if (filters.some(f => f.freq === freq && f.type === type)) return;
@@ -773,7 +874,7 @@ function renderFilterList() {
   });
 }
 
-// --- History ---
+// History
 
 function saveHistory() {
   history = history.slice(0, historyIndex + 1);
@@ -805,9 +906,9 @@ function updateUndoRedoButtons() {
   elBtnRedo.disabled = historyIndex >= history.length - 1;
 }
 
-// --- Audio processing ---
+// Audio processing
 
-function buildFilterGraph(ctx, source) {
+function buildFilterChain(ctx, source) {
   let node = source;
   for (const { freq, q, type } of filters) {
     const biquad = ctx.createBiquadFilter();
@@ -818,6 +919,13 @@ function buildFilterGraph(ctx, source) {
     node = biquad;
   }
   return node;
+}
+
+function buildFilterGraph(ctx, source) {
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = Math.pow(10, gainDb / 20);
+  buildFilterChain(ctx, source).connect(gainNode);
+  return gainNode;
 }
 
 async function applyFilters() {
@@ -863,7 +971,7 @@ async function applyFiltersWithSelection() {
   return output;
 }
 
-// --- Preview ---
+// Preview
 
 function startPreview(offsetOverride) {
   stopPreview();
@@ -873,35 +981,65 @@ function startPreview(offsetOverride) {
   // always treats it as user-gesture-activated (avoids autoplay suspension).
   playbackCtx = new AudioContext();
 
-  const source = playbackCtx.createBufferSource();
-  source.buffer = srcBuffer;
-  buildFilterGraph(playbackCtx, source).connect(playbackCtx.destination);
-
   const offset = (typeof offsetOverride === 'number' && isFinite(offsetOverride))
     ? offsetOverride
     : (selStart !== null ? selStart * srcBuffer.duration : viewStart * srcBuffer.duration);
-
   previewOffsetAtStart = offset;
 
   // Only pass duration when there is an active selection; passing undefined
   // explicitly causes some browsers to convert it to NaN and play nothing.
-  if (selStart !== null && offsetOverride === undefined) {
-    source.start(0, offset, (selEnd - selStart) * srcBuffer.duration);
+  const selDuration = selStart !== null && offsetOverride === undefined
+    ? (selEnd - selStart) * srcBuffer.duration
+    : undefined;
+
+  if (listenNoise && filters.length > 0) {
+    // Delta mode: play (original − filtered) so the user hears what is removed.
+    const srcFiltered = playbackCtx.createBufferSource();
+    srcFiltered.buffer = srcBuffer;
+    const srcDirect = playbackCtx.createBufferSource();
+    srcDirect.buffer = srcBuffer;
+
+    const negGain = playbackCtx.createGain();
+    negGain.gain.value = -1;
+    buildFilterChain(playbackCtx, srcFiltered).connect(negGain);
+    negGain.connect(playbackCtx.destination);
+    srcDirect.connect(playbackCtx.destination);
+
+    if (selDuration !== undefined) {
+      srcFiltered.start(0, offset, selDuration);
+      srcDirect.start(0, offset, selDuration);
+    } else {
+      srcFiltered.start(0, offset);
+      srcDirect.start(0, offset);
+    }
+    previewSource = srcFiltered;
+    previewAuxSource = srcDirect;
+    srcFiltered.onended = onPreviewEnded;
   } else {
-    source.start(0, offset);
+    const source = playbackCtx.createBufferSource();
+    source.buffer = srcBuffer;
+    buildFilterGraph(playbackCtx, source).connect(playbackCtx.destination);
+    if (selDuration !== undefined) {
+      source.start(0, offset, selDuration);
+    } else {
+      source.start(0, offset);
+    }
+    previewSource = source;
+    previewAuxSource = null;
+    source.onended = onPreviewEnded;
   }
 
-  previewSource = source;
   elBtnPreview.classList.add('d-none');
   elBtnStop.classList.remove('d-none');
+}
 
-  source.onended = () => {
-    playbackCtx?.close().catch(() => {});
-    playbackCtx = null;
-    previewSource = null;
-    elBtnPreview.classList.remove('d-none');
-    elBtnStop.classList.add('d-none');
-  };
+function onPreviewEnded() {
+  playbackCtx?.close().catch(() => {});
+  playbackCtx = null;
+  previewSource = null;
+  previewAuxSource = null;
+  elBtnPreview.classList.remove('d-none');
+  elBtnStop.classList.add('d-none');
 }
 
 function restartPreview() {
@@ -915,13 +1053,17 @@ function stopPreview() {
   previewSource.onended = null;
   try { previewSource.stop(); } catch (_) {}
   previewSource = null;
+  if (previewAuxSource) {
+    try { previewAuxSource.stop(); } catch (_) {}
+    previewAuxSource = null;
+  }
   playbackCtx?.close();
   playbackCtx = null;
   elBtnPreview.classList.remove('d-none');
   elBtnStop.classList.add('d-none');
 }
 
-// --- Export ---
+// Export
 
 async function exportAudio() {
   if (!srcBuffer) return;
@@ -1024,4 +1166,74 @@ function encodeMp3(buffer) {
   for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
 
   return new Blob([result], { type: 'audio/mpeg' });
+}
+
+// A/B comparison
+
+function switchSlot(slot) {
+  if (slot === activeSlot) return;
+  if (activeSlot === 'a') filtersA = filters.map(f => ({ ...f }));
+  else filtersB = filters.map(f => ({ ...f }));
+  activeSlot = slot;
+  filters = (slot === 'a' ? filtersA : filtersB).map(f => ({ ...f }));
+  updateSlotButtons();
+  renderFilterList();
+  drawSpectrogram();
+  restartPreview();
+}
+
+function updateSlotButtons() {
+  if (!elBtnSlotA) return;
+  elBtnSlotA.className = `btn ${activeSlot === 'a' ? 'btn-secondary' : 'btn-outline-secondary'}`;
+  elBtnSlotB.className = `btn ${activeSlot === 'b' ? 'btn-secondary' : 'btn-outline-secondary'}`;
+}
+
+// Custom presets
+
+function saveCustomPreset() {
+  if (!filters.length) { alert('No filters to save.'); return; }
+  const name = prompt('Preset name:');
+  if (!name || !name.trim()) return;
+  const presets = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+  presets[name.trim()] = filters.map(f => ({ ...f }));
+  localStorage.setItem('audiokira-presets', JSON.stringify(presets));
+  renderCustomPresets();
+}
+
+function deleteCustomPreset(name) {
+  const presets = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+  delete presets[name];
+  localStorage.setItem('audiokira-presets', JSON.stringify(presets));
+  renderCustomPresets();
+}
+
+function renderCustomPresets() {
+  const presets = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+  const names = Object.keys(presets);
+  elCustomPresetList.innerHTML = '';
+  if (!names.length) {
+    elCustomPresetList.innerHTML = '<span class="small text-body-secondary">No saved presets.</span>';
+    return;
+  }
+  names.forEach(name => {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'align-items-center d-inline-flex gap-1';
+
+    const btnLoad = document.createElement('button');
+    btnLoad.className = 'btn btn-outline-secondary btn-sm';
+    btnLoad.textContent = name;
+    btnLoad.addEventListener('click', () => {
+      const p = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+      if (p[name]) p[name].forEach(f => addFilter(f.freq, f.q, f.type));
+    });
+
+    const btnDel = document.createElement('button');
+    btnDel.className = 'btn btn-outline-danger btn-sm py-0 px-1';
+    btnDel.setAttribute('aria-label', 'Delete preset');
+    btnDel.textContent = '×';
+    btnDel.addEventListener('click', () => deleteCustomPreset(name));
+
+    wrapper.append(btnLoad, btnDel);
+    elCustomPresetList.appendChild(wrapper);
+  });
 }
