@@ -132,7 +132,7 @@
 						<div class="align-items-center d-flex gap-2">
 							<span id="spectrogram-hover" class="font-monospace small text-body-secondary"></span>
 							<button id="btn-scale-toggle" class="btn btn-outline-secondary btn-sm">Log</button>
-							<span class="small text-body-secondary">Click to add notch filter at that frequency</span>
+							<span id="spectrogram-hint" class="small text-body-secondary">Click to add notch filter at that frequency</span>
 						</div>
 					</div>
 					<div class="card-body p-0 position-relative">
@@ -163,8 +163,8 @@
 						<div class="border-bottom mb-4 pb-4">
 							<p class="mb-2 small text-body-secondary">A/B comparison—switch between two filter sets:</p>
 							<div class="btn-group btn-group-sm" role="group" aria-label="A/B filter slots">
-								<button id="btn-slot-a" class="btn btn-secondary">A</button>
-								<button id="btn-slot-b" class="btn btn-outline-secondary">B</button>
+								<button id="btn-slot-a" class="btn btn-secondary" aria-pressed="true">A</button>
+								<button id="btn-slot-b" class="btn btn-outline-secondary" aria-pressed="false">B</button>
 							</div>
 						</div>
 						<div class="border-bottom mb-4 pb-4">
@@ -210,7 +210,7 @@
 				<div class="align-items-center d-flex flex-wrap gap-2 mb-4">
 					<button id="btn-preview" class="btn btn-success">▶ Preview</button>
 					<button id="btn-stop" class="btn btn-outline-secondary d-none">■ Stop</button>
-					<button id="btn-listen-noise" class="btn btn-outline-secondary" title="Hear what the filters remove instead of the cleaned signal. Export always produces the cleaned audio regardless of this toggle.">Noise only</button>
+					<button id="btn-listen-noise" class="btn btn-outline-secondary" aria-pressed="false" title="Hear what the filters remove instead of the cleaned signal. Export always produces the cleaned audio regardless of this toggle.">Noise only</button>
 					<div class="align-items-center d-flex gap-2">
 						<label class="form-label mb-0 small text-body-secondary" for="output-gain">Gain</label>
 						<input type="range" id="output-gain" class="form-range" min="-12" max="12" step="0.5" value="0">
@@ -250,7 +250,7 @@
 						<h2 class="h6 mb-2">Tips</h2>
 						<ul class="mb-4 small">
 							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
-							<li class="mb-2">”Detect recurring bands” flags frequencies present in more than roughly a third of the file. The percentage shown is how often that frequency appeared above a noise floor.</li>
+							<li class="mb-2">“Detect recurring bands” flags frequencies present in more than roughly a third of the file.</li>
 							<li class="mb-2">Hovering over the spectrogram shows the frequency and nearest musical note. Clicking snaps to the strongest nearby peak.</li>
 							<li class=”mb-2”>”Noise only” inverts the filter path so you hear exactly what is removed—useful for verifying nothing intentional is being cut. Export always produces the cleaned signal regardless of this toggle.</li>
 							<li class="mb-2">A/B slots store two independent filter sets; clicking “A” or “B” saves the current set and loads the other for quick comparison.</li>

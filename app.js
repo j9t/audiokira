@@ -40,6 +40,10 @@ let listenNoise = false;
 let filtersA = [];
 let filtersB = [];
 let activeSlot = 'a';
+let historyA = [[]];
+let historyIndexA = 0;
+let historyB = [[]];
+let historyIndexB = 0;
 
 // Selection state
 let selStart = null;
@@ -72,6 +76,7 @@ let elBtnUndo, elBtnRedo;
 let elBtnPreview, elBtnStop, elBtnExport, elExportFormat;
 let elBtnScaleToggle, elOutputGain, elOutputGainLabel, elBtnListenNoise;
 let elBtnSlotA, elBtnSlotB, elCustomPresetList, elBtnSavePreset;
+let elSpectrogramHint;
 
 document.addEventListener('DOMContentLoaded', () => {
   elDropZone = document.getElementById('drop-zone');
@@ -106,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
   elBtnSlotB = document.getElementById('btn-slot-b');
   elCustomPresetList = document.getElementById('custom-preset-list');
   elBtnSavePreset = document.getElementById('btn-save-preset');
+  elSpectrogramHint = document.getElementById('spectrogram-hint');
 
   // File input
   elDropZone.addEventListener('click', () => elFileInput.click());
@@ -163,7 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   elFilterType.addEventListener('change', () => {
     elFilterQ.value = elFilterType.value === 'notch' ? 30 : 0.71;
+    updateSpectrogramHint();
   });
+  updateSpectrogramHint();
   document.getElementById('btn-detect').addEventListener('click', () => {
     const bands = detectBands();
     if (bands.length > 0) {
@@ -226,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
     listenNoise = !listenNoise;
     elBtnListenNoise.classList.toggle('btn-warning', listenNoise);
     elBtnListenNoise.classList.toggle('btn-outline-secondary', !listenNoise);
+    elBtnListenNoise.setAttribute('aria-pressed', String(listenNoise));
     restartPreview();
   });
 
@@ -279,6 +288,10 @@ async function loadFile(file) {
   filtersA = [];
   filtersB = [];
   activeSlot = 'a';
+  historyA = [[]];
+  historyIndexA = 0;
+  historyB = [[]];
+  historyIndexB = 0;
   selStart = null;
   selEnd = null;
   history = [[]];
@@ -310,6 +323,10 @@ function resetState() {
   filtersA = [];
   filtersB = [];
   activeSlot = 'a';
+  historyA = [];
+  historyIndexA = -1;
+  historyB = [];
+  historyIndexB = -1;
   selStart = null;
   selEnd = null;
   history = [];
@@ -320,6 +337,7 @@ function resetState() {
   elOutputGainLabel.textContent = '0 dB';
   elBtnListenNoise.classList.remove('btn-warning');
   elBtnListenNoise.classList.add('btn-outline-secondary');
+  elBtnListenNoise.setAttribute('aria-pressed', 'false');
   updateSlotButtons();
   elAudioInfo.classList.add('d-none');
   elDropZone.classList.remove('d-none');
@@ -1172,20 +1190,59 @@ function encodeMp3(buffer) {
 
 function switchSlot(slot) {
   if (slot === activeSlot) return;
-  if (activeSlot === 'a') filtersA = filters.map(f => ({ ...f }));
-  else filtersB = filters.map(f => ({ ...f }));
+  if (activeSlot === 'a') {
+    filtersA = filters.map(f => ({ ...f }));
+    historyA = history;
+    historyIndexA = historyIndex;
+  } else {
+    filtersB = filters.map(f => ({ ...f }));
+    historyB = history;
+    historyIndexB = historyIndex;
+  }
   activeSlot = slot;
   filters = (slot === 'a' ? filtersA : filtersB).map(f => ({ ...f }));
+  history = slot === 'a' ? historyA : historyB;
+  historyIndex = slot === 'a' ? historyIndexA : historyIndexB;
   updateSlotButtons();
   renderFilterList();
   drawSpectrogram();
+  updateUndoRedoButtons();
   restartPreview();
 }
 
 function updateSlotButtons() {
   if (!elBtnSlotA) return;
   elBtnSlotA.className = `btn ${activeSlot === 'a' ? 'btn-secondary' : 'btn-outline-secondary'}`;
+  elBtnSlotA.setAttribute('aria-pressed', String(activeSlot === 'a'));
   elBtnSlotB.className = `btn ${activeSlot === 'b' ? 'btn-secondary' : 'btn-outline-secondary'}`;
+  elBtnSlotB.setAttribute('aria-pressed', String(activeSlot === 'b'));
+}
+
+function safeParsePresets() {
+  try {
+    return JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
+function updateSpectrogramHint() {
+  if (elSpectrogramHint) elSpectrogramHint.textContent = `Click to add ${elFilterType.value} filter at that frequency`;
+}
+
+function addFiltersBatch(newFilters) {
+  let added = false;
+  for (const { freq, q, type = 'notch' } of newFilters) {
+    if (!filters.some(f => f.freq === freq && f.type === type)) {
+      filters.push({ freq, q, type });
+      added = true;
+    }
+  }
+  if (!added) return;
+  saveHistory();
+  renderFilterList();
+  drawSpectrogram();
+  restartPreview();
 }
 
 // Custom presets
@@ -1194,21 +1251,21 @@ function saveCustomPreset() {
   if (!filters.length) { alert('No filters to save.'); return; }
   const name = prompt('Preset name:');
   if (!name || !name.trim()) return;
-  const presets = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+  const presets = safeParsePresets();
   presets[name.trim()] = filters.map(f => ({ ...f }));
   localStorage.setItem('audiokira-presets', JSON.stringify(presets));
   renderCustomPresets();
 }
 
 function deleteCustomPreset(name) {
-  const presets = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+  const presets = safeParsePresets();
   delete presets[name];
   localStorage.setItem('audiokira-presets', JSON.stringify(presets));
   renderCustomPresets();
 }
 
 function renderCustomPresets() {
-  const presets = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
+  const presets = safeParsePresets();
   const names = Object.keys(presets);
   elCustomPresetList.innerHTML = '';
   if (!names.length) {
@@ -1223,8 +1280,8 @@ function renderCustomPresets() {
     btnLoad.className = 'btn btn-outline-secondary btn-sm';
     btnLoad.textContent = name;
     btnLoad.addEventListener('click', () => {
-      const p = JSON.parse(localStorage.getItem('audiokira-presets') || '{}');
-      if (p[name]) p[name].forEach(f => addFilter(f.freq, f.q, f.type));
+      const p = safeParsePresets();
+      if (p[name]) addFiltersBatch(p[name]);
     });
 
     const btnDel = document.createElement('button');
