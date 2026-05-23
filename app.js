@@ -1,3 +1,5 @@
+// @@ Restructure and clean up
+
 const FFT_SIZE = 2048;
 const SPEC_COLS = 1024;
 
