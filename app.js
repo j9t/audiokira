@@ -84,7 +84,7 @@ let elBtnUndo, elBtnRedo;
 let elBtnPreview, elBtnStop, elBtnExport, elExportFormat;
 let elBtnScaleToggle, elOutputGain, elOutputGainLabel, elBtnListenNoise;
 let elBtnSlotA, elBtnSlotB, elCustomPresetList, elBtnSavePreset;
-let elSpectrogramHint;
+let elSpectrogramHint, elAnnounce;
 
 document.addEventListener('DOMContentLoaded', () => {
   elDropZone = document.getElementById('drop-zone');
@@ -120,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
   elCustomPresetList = document.getElementById('custom-preset-list');
   elBtnSavePreset = document.getElementById('btn-save-preset');
   elSpectrogramHint = document.getElementById('spectrogram-hint');
+  elAnnounce = document.getElementById('announce');
 
   // File input
   elDropZone.addEventListener('click', () => elFileInput.click());
@@ -160,6 +161,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Scrollbar
   elScrollbar.addEventListener('mousedown', handleScrollbarMouseDown);
+  elScrollbar.addEventListener('keydown', (event) => {
+    if (!srcBuffer) return;
+    const range = viewEnd - viewStart;
+    const step = Math.max(0.01, range * 0.1);
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      viewStart = Math.max(0, viewStart - step);
+      viewEnd = viewStart + range;
+      if (viewEnd > 1) { viewEnd = 1; viewStart = 1 - range; }
+      refreshView();
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      viewStart = Math.max(0, Math.min(1 - range, viewStart + step));
+      viewEnd = viewStart + range;
+      refreshView();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      viewStart = 0;
+      viewEnd = range;
+      refreshView();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      viewStart = 1 - range;
+      viewEnd = 1;
+      refreshView();
+    }
+  });
 
   // Selection
   document.getElementById('btn-clear-sel').addEventListener('click', clearSelection);
@@ -203,8 +231,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Actions
-  elBtnPreview.addEventListener('click', () => startPreview());
-  elBtnStop.addEventListener('click', stopPreview);
+  elBtnPreview.addEventListener('click', () => {
+    startPreview();
+    if (!elBtnStop.classList.contains('d-none')) elBtnStop.focus();
+  });
+  elBtnStop.addEventListener('click', () => {
+    stopPreview();
+    elBtnPreview.focus();
+  });
   elBtnExport.addEventListener('click', exportAudio);
 
   // Scale toggle
@@ -259,6 +293,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (srcBuffer) drawSpectrogram();
   }).observe(document.getElementById('spectrogram'));
 });
+
+function announce(msg) {
+  if (!elAnnounce) return;
+  elAnnounce.textContent = '';
+  requestAnimationFrame(() => { elAnnounce.textContent = msg; });
+}
 
 // File loading
 
@@ -601,6 +641,7 @@ function handleMouseUp() {
 function updateScrollbar() {
   elScrollThumb.style.left = (viewStart * 100) + '%';
   elScrollThumb.style.width = ((viewEnd - viewStart) * 100) + '%';
+  elScrollbar.setAttribute('aria-valuenow', Math.round(viewStart * 100));
 }
 
 // Selection
@@ -947,22 +988,25 @@ function detectBands() {
 
 // Filters
 
-function commitFilterChange() {
+function commitFilterChange(msg) {
   saveHistory();
   renderFilterList();
   drawSpectrogram();
   restartPreview();
+  const n = filters.length;
+  announce(msg ?? (n === 0 ? 'All filters removed.' : `${n} filter${n === 1 ? '' : 's'} active.`));
 }
 
 function addFilter(freq, q, type = 'notch') {
   if (filters.some(f => f.freq === freq && f.type === type)) return;
   filters.push({ freq, q, type });
-  commitFilterChange();
+  commitFilterChange(`Added ${filterLabel({freq, q, type})}.`);
 }
 
 function removeFilter(idx) {
+  const removed = filters[idx];
   filters.splice(idx, 1);
-  commitFilterChange();
+  commitFilterChange(`Removed ${filterLabel(removed)}.`);
 }
 
 function formatHz(hz) {
@@ -1008,6 +1052,8 @@ function undo() {
   renderFilterList();
   drawSpectrogram();
   updateUndoRedoButtons();
+  const n = filters.length;
+  announce(n === 0 ? 'Undone. No filters.' : `Undone. ${n} filter${n === 1 ? '' : 's'} active.`);
 }
 
 function redo() {
@@ -1017,6 +1063,8 @@ function redo() {
   renderFilterList();
   drawSpectrogram();
   updateUndoRedoButtons();
+  const n = filters.length;
+  announce(n === 0 ? 'Redone. No filters.' : `Redone. ${n} filter${n === 1 ? '' : 's'} active.`);
 }
 
 function updateUndoRedoButtons() {
@@ -1156,12 +1204,14 @@ function startPreview(offsetOverride) {
 }
 
 function onPreviewEnded() {
+  const stopHasFocus = document.activeElement === elBtnStop;
   playbackCtx?.close().catch(() => {});
   playbackCtx = null;
   previewSource = null;
   previewAuxSource = null;
   elBtnPreview.classList.remove('d-none');
   elBtnStop.classList.add('d-none');
+  if (stopHasFocus) elBtnPreview.focus();
 }
 
 function restartPreview() {
@@ -1314,6 +1364,8 @@ function switchSlot(slot) {
   drawSpectrogram();
   updateUndoRedoButtons();
   restartPreview();
+  const n = filters.length;
+  announce(`Slot ${slot.toUpperCase()} active. ${n} filter${n === 1 ? '' : 's'}.`);
 }
 
 function updateSlotButtons() {

@@ -82,6 +82,11 @@
 				position: absolute;
 			}
 
+			#spectrogram-scrollbar:focus-visible {
+				outline: 2px solid var(--bs-primary);
+				outline-offset: 2px;
+			}
+
 			#output-gain {
 				width: 80px;
 			}
@@ -132,7 +137,7 @@
 						</div>
 					</div>
 					<div class="card-body p-0">
-						<canvas id="waveform-canvas" class="w-100"></canvas>
+						<canvas id="waveform-canvas" class="w-100" role="img" aria-label="Audio waveform"></canvas>
 					</div>
 				</div>
 				<div id="selection-info" class="alert alert-warning align-items-center d-flex d-none justify-content-between mb-4 px-2 py-2">
@@ -152,15 +157,15 @@
 						</div>
 					</div>
 					<div id="spectrogram" class="card-body p-0 position-relative">
-						<canvas id="spectrogram-canvas" class="w-100"></canvas>
+						<canvas id="spectrogram-canvas" class="w-100" role="img" aria-label="Audio frequency spectrogram"></canvas>
 						<div id="spectrogram-overlay" class="align-items-center d-flex h-100 justify-content-center position-absolute start-0 top-0 w-100">
 							<div class="text-center text-white">
 								<div class="me-2 spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
-								<span id="spectrogram-progress">Analyzing…</span>
+								<span id="spectrogram-progress" role="status">Analyzing…</span>
 							</div>
 						</div>
 					</div>
-					<div id="spectrogram-scrollbar">
+					<div id="spectrogram-scrollbar" role="scrollbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Spectrogram time scroll" aria-controls="spectrogram-canvas" tabindex="0">
 						<div id="spectrogram-scroll-thumb"></div>
 					</div>
 				</div>
@@ -213,7 +218,7 @@
 								<button id="btn-add-filter" class="btn btn-primary btn-sm">Add filter</button>
 							</div>
 						</div>
-						<div id="filter-list" class="d-flex flex-wrap gap-2">
+						<div id="filter-list" class="d-flex flex-wrap gap-2" aria-label="Active filters">
 							<span class="small text-body-secondary">No filters added yet.</span>
 						</div>
 						<div class="border-top mt-4 pt-4">
@@ -241,6 +246,7 @@
 					</div>
 				</div>
 			</div>
+			<div id="announce" aria-live="polite" class="visually-hidden"></div>
 			<details>
 				<summary class="h5 mb-4">About Audiokira</summary>
 				<p class="mb-2">Audiokira removes recurring frequency patterns—like electrical hum, HVAC noise, or tonal interference—from audio and video files, entirely in your browser.</p>
@@ -259,7 +265,8 @@
 						<ul class="mb-4 small">
 							<li class="mb-2">Very large files may take several seconds to analyze.</li>
 							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Use “Noise only” to hear what is removed, then adjust Q and preview normally to minimize collateral effect.</li>
-							<li>Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
+							<li class="mb-2">Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
+							<li>Keyboard navigation for spectrogram interaction and waveform selection is lacking; while the tool ideally should be accessible to everyone, with only one user (added during early development) this isn’t currently being pursued.</li>
 						</ul>
 					</div>
 					<div class="col-md-6">
