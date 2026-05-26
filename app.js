@@ -53,6 +53,12 @@ let selEnd = null;
 let selAnchor = null;
 let isSelecting = false;
 
+// Spectrogram drag state
+let isSpecDragging = false;
+let specDragStartY = null;
+let specDragCurrentY = null;
+let specDragMoved = false;
+
 // Interaction state
 let isDragging = false;
 let dragStartX = 0;
@@ -152,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-zoom-reset').addEventListener('click', resetZoom);
 
   // Spectrogram interaction
-  elSpectrogramCanvas.addEventListener('click', handleSpectrogramClick);
+  elSpectrogramCanvas.addEventListener('mousedown', handleSpectrogramMouseDown);
   elSpectrogramCanvas.addEventListener('wheel', handleWheel, { passive: false });
 
   // Scrollbar
@@ -252,6 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
   new ResizeObserver(() => {
     if (srcBuffer) { drawWaveform(); drawSpectrogram(); }
   }).observe(elAudioInfo);
+  new ResizeObserver(() => {
+    if (srcBuffer) drawSpectrogram();
+  }).observe(document.getElementById('spectrogram'));
 });
 
 // File loading
@@ -491,6 +500,16 @@ function handleScrollbarMouseDown(event) {
 }
 
 function handleMouseMove(event) {
+  if (isSpecDragging) {
+    const rect = elSpectrogramCanvas.getBoundingClientRect();
+    specDragCurrentY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+    if (Math.abs(specDragCurrentY - specDragStartY) > 4) specDragMoved = true;
+    if (specDragMoved) {
+      elSpectrogramCanvas.style.cursor = 'ns-resize';
+      drawSpectrogram();
+    }
+    return;
+  }
   if (isSelecting) {
     const rect = elWaveformCanvas.getBoundingClientRect();
     const pos = (event.clientX - rect.left) / rect.width;
@@ -528,6 +547,49 @@ function handleMouseMove(event) {
 }
 
 function handleMouseUp() {
+  if (isSpecDragging) {
+    isSpecDragging = false;
+    elSpectrogramCanvas.style.cursor = '';
+    if (srcBuffer) {
+      const rect = elSpectrogramCanvas.getBoundingClientRect();
+      if (specDragMoved) {
+        const y1 = Math.min(specDragStartY, specDragCurrentY);
+        const y2 = Math.max(specDragStartY, specDragCurrentY);
+        const freqHigh = yToHz(y1, rect.height, srcBuffer.sampleRate);
+        const freqLow = yToHz(y2, rect.height, srcBuffer.sampleRate);
+        const type = elFilterType.value;
+        let freq, q;
+        if (type === 'notch') {
+          const center = Math.sqrt(freqLow * freqHigh);
+          freq = Math.round(center);
+          q = Math.max(0.1, Math.round(center / (freqHigh - freqLow) * 10) / 10);
+        } else if (type === 'highpass') {
+          freq = Math.max(1, Math.round(freqLow));
+          q = 0.71;
+        } else {
+          freq = Math.max(1, Math.round(freqHigh));
+          q = 0.71;
+        }
+        elFilterFreq.value = freq;
+        elFilterQ.value = q;
+        addFilter(freq, q, type);
+      } else {
+        const snapped = snapToPeak(specDragStartY, rect.height, srcBuffer.sampleRate);
+        const freq = snapped !== null
+          ? Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), snapped))
+          : Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), Math.round(yToHz(specDragStartY, rect.height, srcBuffer.sampleRate))));
+        const q = parseFloat(elFilterQ.value) || 30;
+        const type = elFilterType.value;
+        elFilterFreq.value = freq;
+        addFilter(freq, q, type);
+      }
+    }
+    specDragStartY = null;
+    specDragCurrentY = null;
+    specDragMoved = false;
+    drawSpectrogram();
+    return;
+  }
   if (isSelecting) {
     isSelecting = false;
     elWaveformCanvas.style.cursor = '';
@@ -681,6 +743,7 @@ function drawSpectrogram() {
   }
   ctx.putImageData(imageData, 0, 0);
   drawSpectrogramLabels(ctx, width, height, sampleRate);
+  if (isSpecDragging && specDragMoved) drawSpecDragOverlay(ctx, width, height, sampleRate);
 }
 
 function drawSpectrogramLabels(ctx, width, height, sampleRate) {
@@ -789,18 +852,52 @@ function spectrogramColor(t) {
   return [255, Math.round(255 * (1 - s)), 0];
 }
 
-function handleSpectrogramClick(event) {
+function handleSpectrogramMouseDown(event) {
   if (!srcBuffer) return;
   const rect = elSpectrogramCanvas.getBoundingClientRect();
-  const y = event.clientY - rect.top;
-  const snapped = snapToPeak(y, rect.height, srcBuffer.sampleRate);
-  const freq = snapped !== null
-    ? Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), snapped))
-    : Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), Math.round(yToHz(y, rect.height, srcBuffer.sampleRate))));
-  const q = parseFloat(elFilterQ.value) || 30;
+  isSpecDragging = true;
+  specDragStartY = event.clientY - rect.top;
+  specDragCurrentY = specDragStartY;
+  specDragMoved = false;
+}
+
+function drawSpecDragOverlay(ctx, width, height, sampleRate) {
+  const y1 = Math.min(specDragStartY, specDragCurrentY);
+  const y2 = Math.max(specDragStartY, specDragCurrentY);
+  if (y2 - y1 < 2) return;
+  const freqHigh = yToHz(y1, height, sampleRate);
+  const freqLow = yToHz(y2, height, sampleRate);
   const type = elFilterType.value;
-  elFilterFreq.value = freq;
-  addFilter(freq, q, type);
+
+  ctx.fillStyle = 'rgba(255, 220, 50, 0.13)';
+  ctx.fillRect(0, y1, width, y2 - y1);
+  ctx.strokeStyle = 'rgba(255, 220, 50, 0.65)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(0, y1); ctx.lineTo(width, y1);
+  ctx.moveTo(0, y2); ctx.lineTo(width, y2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  let label;
+  if (type === 'notch') {
+    const center = Math.sqrt(freqLow * freqHigh);
+    const q = Math.max(0.1, center / (freqHigh - freqLow));
+    const hz = center >= 1000 ? `${(center / 1000).toFixed(1)}k` : Math.round(center);
+    label = `notch ${hz} Hz · Q ${q.toFixed(1)}`;
+  } else if (type === 'highpass') {
+    const hz = freqLow >= 1000 ? `${(freqLow / 1000).toFixed(1)}k` : Math.round(freqLow);
+    label = `highpass ↑ ${hz} Hz`;
+  } else {
+    const hz = freqHigh >= 1000 ? `${(freqHigh / 1000).toFixed(1)}k` : Math.round(freqHigh);
+    label = `lowpass ↓ ${hz} Hz`;
+  }
+
+  ctx.font = '11px monospace';
+  ctx.fillStyle = 'rgba(255, 220, 50, 0.95)';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, 6, y2 - y1 > 20 ? y1 + 14 : Math.max(14, y1 - 4));
 }
 
 // Band detection
@@ -1233,7 +1330,7 @@ function safeParsePresets() {
 }
 
 function updateSpectrogramHint() {
-  if (elSpectrogramHint) elSpectrogramHint.textContent = `Click to add ${elFilterType.value} filter at that frequency`;
+  if (elSpectrogramHint) elSpectrogramHint.textContent = `Click or drag to add ${elFilterType.value} filter`;
 }
 
 function addFiltersBatch(newFilters) {
