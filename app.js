@@ -142,10 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-reset').addEventListener('click', resetState);
   document.getElementById('btn-reset-filters').addEventListener('click', () => {
     filters = [];
-    saveHistory();
-    renderFilterList();
-    drawSpectrogram();
-    restartPreview();
+    commitFilterChange();
   });
 
   // Waveform interaction
@@ -437,6 +434,12 @@ function handleWheel(event) {
   zoomAround(pivot, factor);
 }
 
+function refreshView() {
+  drawWaveform();
+  drawSpectrogram();
+  updateScrollbar();
+}
+
 function zoomAround(pivot, factor) {
   const range = viewEnd - viewStart;
   const newRange = Math.max(0.0005, Math.min(1, range * factor));
@@ -447,17 +450,13 @@ function zoomAround(pivot, factor) {
   if (newEnd > 1) { newStart -= newEnd - 1; newEnd = 1; }
   viewStart = Math.max(0, newStart);
   viewEnd = Math.min(1, newEnd);
-  drawWaveform();
-  drawSpectrogram();
-  updateScrollbar();
+  refreshView();
 }
 
 function resetZoom() {
   viewStart = 0;
   viewEnd = 1;
-  drawWaveform();
-  drawSpectrogram();
-  updateScrollbar();
+  refreshView();
 }
 
 function handleMouseDown(event) {
@@ -493,9 +492,7 @@ function handleScrollbarMouseDown(event) {
     const range = viewEnd - viewStart;
     viewStart = Math.max(0, Math.min(1 - range, pos - range / 2));
     viewEnd = viewStart + range;
-    drawWaveform();
-    drawSpectrogram();
-    updateScrollbar();
+    refreshView();
   }
 }
 
@@ -526,9 +523,7 @@ function handleMouseMove(event) {
     const range = scrollbarDragStartViewEnd - scrollbarDragStartViewStart;
     viewStart = Math.max(0, Math.min(1 - range, scrollbarDragStartViewStart + dx));
     viewEnd = viewStart + range;
-    drawWaveform();
-    drawSpectrogram();
-    updateScrollbar();
+    refreshView();
     return;
   }
   if (isDragging) {
@@ -540,9 +535,7 @@ function handleMouseMove(event) {
     if (newEnd > 1) { newStart -= newEnd - 1; newEnd = 1; }
     viewStart = Math.max(0, newStart);
     viewEnd = Math.min(1, newEnd);
-    drawWaveform();
-    drawSpectrogram();
-    updateScrollbar();
+    refreshView();
   }
 }
 
@@ -560,11 +553,7 @@ function handleMouseUp() {
         const type = elFilterType.value;
         let freq, q;
         if (type === 'notch') {
-          const center = Math.sqrt(freqLow * freqHigh);
-          freq = Math.round(center);
-          const denom = freqHigh - freqLow;
-          const qRaw = denom > 1e-6 ? center / denom : 0.1;
-          q = Math.max(0.1, Math.round((isFinite(qRaw) ? qRaw : 0.1) * 10) / 10);
+          ({ freq, q } = notchFromBand(freqLow, freqHigh));
         } else if (type === 'highpass') {
           freq = Math.max(1, Math.round(freqLow));
           q = 0.71;
@@ -726,17 +715,25 @@ function drawSpectrogram() {
   const endCol = Math.floor(viewEnd * SPEC_COLS);
   const numViewCols = Math.max(1, endCol - startCol);
 
+  const binForY = new Uint16Array(height);
+  for (let py = 0; py < height; py++) {
+    binForY[py] = Math.min(Math.round(yToHz(py, height, sampleRate) * FFT_SIZE / sampleRate), numBins - 1);
+  }
+
   const imageData = ctx.createImageData(width, height);
+  const inv = specMaxMag > 0 ? 1 / specMaxMag : 0;
   for (let px = 0; px < width; px++) {
     const col = Math.max(0, Math.min(SPEC_COLS - 1, startCol + Math.round(px * numViewCols / width)));
     const off = col * numBins;
     for (let py = 0; py < height; py++) {
-      const bin = Math.min(Math.round(yToHz(py, height, sampleRate) * FFT_SIZE / sampleRate), numBins - 1);
-      const mag = specMags[off + bin];
-      const t = specMaxMag > 0 ? mag / specMaxMag : 0;
+      const t = specMags[off + binForY[py]] * inv;
       const db = t > 0 ? Math.max(0, 1 + Math.log10(t) / 3) : 0;
-      const [r, g, b] = spectrogramColor(db);
       const idx = (py * width + px) * 4;
+      let r, g, b;
+      if (db < 0.25) { const s = db / 0.25; r = 0; g = 0; b = Math.round(255 * s); }
+      else if (db < 0.5) { const s = (db - 0.25) / 0.25; r = 0; g = Math.round(255 * s); b = 255; }
+      else if (db < 0.75) { const s = (db - 0.5) / 0.25; r = Math.round(255 * s); g = 255; b = Math.round(255 * (1 - s)); }
+      else { const s = (db - 0.75) / 0.25; r = 255; g = Math.round(255 * (1 - s)); b = 0; }
       imageData.data[idx] = r;
       imageData.data[idx + 1] = g;
       imageData.data[idx + 2] = b;
@@ -772,7 +769,7 @@ function drawSpectrogramLabels(ctx, width, height, sampleRate) {
     ctx.moveTo(0, y); ctx.lineTo(width, y);
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255)';
-    ctx.fillText(freq >= 1000 ? `${freq / 1000}k` : `${freq}`, 4, y - 2);
+    ctx.fillText(formatHz(freq), 4, y - 2);
   }
 
   for (const { freq, type } of filters) {
@@ -846,12 +843,13 @@ function snapToPeak(clickedY, height, sampleRate) {
   return bestBin >= 1 ? Math.round(bestBin * sampleRate / FFT_SIZE) : null;
 }
 
-function spectrogramColor(t) {
-  if (t < 0.25) { const s = t / 0.25; return [0, 0, Math.round(255 * s)]; }
-  if (t < 0.5) { const s = (t - 0.25) / 0.25; return [0, Math.round(255 * s), 255]; }
-  if (t < 0.75) { const s = (t - 0.5) / 0.25; return [Math.round(255 * s), 255, Math.round(255 * (1 - s))]; }
-  const s = (t - 0.75) / 0.25;
-  return [255, Math.round(255 * (1 - s)), 0];
+
+function notchFromBand(freqLow, freqHigh) {
+  const center = Math.sqrt(freqLow * freqHigh);
+  const denom = freqHigh - freqLow;
+  const qRaw = denom > 1e-6 ? center / denom : 0.1;
+  const q = Math.max(0.1, Math.round((isFinite(qRaw) ? qRaw : 0.1) * 10) / 10);
+  return { freq: Math.round(center), q };
 }
 
 function handleSpectrogramMouseDown(event) {
@@ -884,18 +882,12 @@ function drawSpecDragOverlay(ctx, width, height, sampleRate) {
 
   let label;
   if (type === 'notch') {
-    const center = Math.sqrt(freqLow * freqHigh);
-    const denom = freqHigh - freqLow;
-    const qRaw = denom > 1e-6 ? center / denom : 0.1;
-    const q = Math.max(0.1, isFinite(qRaw) ? qRaw : 0.1);
-    const hz = center >= 1000 ? `${(center / 1000).toFixed(1)}k` : Math.round(center);
-    label = `notch ${hz} Hz · Q ${q.toFixed(1)}`;
+    const { freq, q } = notchFromBand(freqLow, freqHigh);
+    label = `notch ${formatHz(freq)} Hz · Q ${q.toFixed(1)}`;
   } else if (type === 'highpass') {
-    const hz = freqLow >= 1000 ? `${(freqLow / 1000).toFixed(1)}k` : Math.round(freqLow);
-    label = `highpass ↑ ${hz} Hz`;
+    label = `highpass ↑ ${formatHz(Math.round(freqLow))} Hz`;
   } else {
-    const hz = freqHigh >= 1000 ? `${(freqHigh / 1000).toFixed(1)}k` : Math.round(freqHigh);
-    label = `lowpass ↓ ${hz} Hz`;
+    label = `lowpass ↓ ${formatHz(Math.round(freqHigh))} Hz`;
   }
 
   ctx.font = '11px monospace';
@@ -955,25 +947,30 @@ function detectBands() {
 
 // Filters
 
-function addFilter(freq, q, type = 'notch') {
-  if (filters.some(f => f.freq === freq && f.type === type)) return;
-  filters.push({ freq, q, type });
+function commitFilterChange() {
   saveHistory();
   renderFilterList();
   drawSpectrogram();
   restartPreview();
+}
+
+function addFilter(freq, q, type = 'notch') {
+  if (filters.some(f => f.freq === freq && f.type === type)) return;
+  filters.push({ freq, q, type });
+  commitFilterChange();
 }
 
 function removeFilter(idx) {
   filters.splice(idx, 1);
-  saveHistory();
-  renderFilterList();
-  drawSpectrogram();
-  restartPreview();
+  commitFilterChange();
+}
+
+function formatHz(hz) {
+  return hz >= 1000 ? `${parseFloat((hz / 1000).toFixed(1))}k` : `${Math.round(hz)}`;
 }
 
 function filterLabel(f) {
-  const hz = f.freq >= 1000 ? `${f.freq / 1000 % 1 === 0 ? f.freq / 1000 : (f.freq / 1000).toFixed(1)}k` : f.freq;
+  const hz = formatHz(f.freq);
   if (f.type === 'highpass') return `highpass ${hz} Hz`;
   if (f.type === 'lowpass') return `lowpass ${hz} Hz`;
   return `notch ${hz} Hz (Q: ${f.q})`;
@@ -1229,6 +1226,11 @@ async function exportAudio() {
   }
 }
 
+function floatToInt16(s) {
+  const c = Math.max(-1, Math.min(1, s));
+  return c < 0 ? c * 32768 : c * 32767;
+}
+
 function encodeWAV(buffer) {
   const numChannels = buffer.numberOfChannels;
   const sampleRate = buffer.sampleRate;
@@ -1245,11 +1247,11 @@ function encodeWAV(buffer) {
   view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true);
   view.setUint16(34, 16, true); str(36, 'data'); view.setUint32(40, dataSize, true);
 
+  const channels = Array.from({length: numChannels}, (_, ch) => buffer.getChannelData(ch));
   let off = 44;
   for (let i = 0; i < numSamples; i++) {
     for (let ch = 0; ch < numChannels; ch++) {
-      const s = Math.max(-1, Math.min(1, buffer.getChannelData(ch)[i]));
-      view.setInt16(off, s < 0 ? s * 32768 : s * 32767, true);
+      view.setInt16(off, floatToInt16(channels[ch][i]), true);
       off += 2;
     }
   }
@@ -1263,10 +1265,7 @@ function encodeMp3(buffer) {
 
   const toInt16 = (f32) => {
     const i16 = new Int16Array(f32.length);
-    for (let i = 0; i < f32.length; i++) {
-      const s = Math.max(-1, Math.min(1, f32[i]));
-      i16[i] = s < 0 ? s * 32768 : s * 32767;
-    }
+    for (let i = 0; i < f32.length; i++) i16[i] = floatToInt16(f32[i]);
     return i16;
   };
 
@@ -1345,11 +1344,7 @@ function addFiltersBatch(newFilters) {
       added = true;
     }
   }
-  if (!added) return;
-  saveHistory();
-  renderFilterList();
-  drawSpectrogram();
-  restartPreview();
+  if (added) commitFilterChange();
 }
 
 // Custom presets
