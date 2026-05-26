@@ -219,7 +219,7 @@
 				<div class="align-items-center d-flex flex-wrap gap-2 mb-4">
 					<button id="btn-preview" class="btn btn-success">▶ Preview</button>
 					<button id="btn-stop" class="btn btn-outline-secondary d-none">■ Stop</button>
-					<button id="btn-listen-noise" class="btn btn-outline-secondary" aria-pressed="false" title="Hear what the filters remove instead of the cleaned signal. Export always produces the cleaned audio regardless of this toggle.">Noise only</button>
+					<button id="btn-listen-noise" class="btn btn-outline-secondary" aria-pressed="false" title="Hear only what the filters remove, instead of the cleaned signal. Export always produces the cleaned audio regardless of this toggle.">Filtered out only</button>
 					<div class="align-items-center d-flex gap-2">
 						<label class="form-label mb-0 small text-body-secondary" for="output-gain">Gain</label>
 						<input type="range" id="output-gain" class="form-range" min="-12" max="12" step="0.5" value="0">
@@ -261,7 +261,7 @@
 							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
 							<li class="mb-2">“Detect recurring bands” flags frequencies present in more than roughly a third of the file.</li>
 							<li class="mb-2">Hovering over the spectrogram shows the frequency and nearest musical note. Clicking snaps to the strongest nearby peak.</li>
-							<li class="mb-2">“Noise only” inverts the filter path so you hear exactly what is removed—useful for verifying nothing intentional is being cut. Export always produces the cleaned signal regardless of this toggle.</li>
+							<li class="mb-2">“Filtered out only” plays back exactly what the filters remove—useful for verifying nothing intentional is being cut. Export always produces the cleaned signal regardless of this toggle.</li>
 							<li class="mb-2">A/B slots store two independent filter sets; clicking “A” or “B” saves the current set and loads the other for quick comparison.</li>
 							<li class="mb-2">The Gain slider compensates for volume loss from heavy filtering and is reflected in the export.</li>
 							<li class="mb-2">Use “Save current filters as preset…” to store a filter set in your browser for reuse across sessions.</li>
