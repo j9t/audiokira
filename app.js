@@ -562,7 +562,9 @@ function handleMouseUp() {
         if (type === 'notch') {
           const center = Math.sqrt(freqLow * freqHigh);
           freq = Math.round(center);
-          q = Math.max(0.1, Math.round(center / (freqHigh - freqLow) * 10) / 10);
+          const denom = freqHigh - freqLow;
+          const qRaw = denom > 1e-6 ? center / denom : 0.1;
+          q = Math.max(0.1, Math.round((isFinite(qRaw) ? qRaw : 0.1) * 10) / 10);
         } else if (type === 'highpass') {
           freq = Math.max(1, Math.round(freqLow));
           q = 0.71;
@@ -883,7 +885,9 @@ function drawSpecDragOverlay(ctx, width, height, sampleRate) {
   let label;
   if (type === 'notch') {
     const center = Math.sqrt(freqLow * freqHigh);
-    const q = Math.max(0.1, center / (freqHigh - freqLow));
+    const denom = freqHigh - freqLow;
+    const qRaw = denom > 1e-6 ? center / denom : 0.1;
+    const q = Math.max(0.1, isFinite(qRaw) ? qRaw : 0.1);
     const hz = center >= 1000 ? `${(center / 1000).toFixed(1)}k` : Math.round(center);
     label = `notch ${hz} Hz · Q ${q.toFixed(1)}`;
   } else if (type === 'highpass') {
