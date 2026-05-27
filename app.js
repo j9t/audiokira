@@ -355,6 +355,7 @@ async function loadFile(file) {
   updateScrollbar();
 
   elSpectrogramProgress.textContent = 'Analyzing…';
+  elSpectrogramProgress.setAttribute('aria-valuenow', 0);
   await computeSpectrogram(token);
   if (token !== loadToken) return;
   drawSpectrogram();
@@ -590,6 +591,7 @@ function handleMouseUp() {
     isSpecDragging = false;
     elSpectrogramCanvas.style.cursor = '';
     if (specDragRafId) { cancelAnimationFrame(specDragRafId); specDragRafId = null; }
+    let committed = false;
     if (srcBuffer) {
       const rect = elSpectrogramCanvas.getBoundingClientRect();
       if (specDragMoved) {
@@ -603,14 +605,14 @@ function handleMouseUp() {
           ({ freq, q } = notchFromBand(freqLow, freqHigh));
         } else if (type === 'highpass') {
           freq = Math.max(1, Math.round(freqLow));
-          q = 0.71;
+          q = parseFloat(elFilterQ.value) || 0.71;
         } else {
           freq = Math.max(1, Math.round(freqHigh));
-          q = 0.71;
+          q = parseFloat(elFilterQ.value) || 0.71;
         }
         elFilterFreq.value = freq;
         elFilterQ.value = q;
-        addFilter(freq, q, type);
+        committed = addFilter(freq, q, type);
       } else {
         const snapped = snapToPeak(specDragStartY, rect.height, srcBuffer.sampleRate);
         const freq = snapped !== null
@@ -619,13 +621,13 @@ function handleMouseUp() {
         const q = parseFloat(elFilterQ.value) || 30;
         const type = elFilterType.value;
         elFilterFreq.value = freq;
-        addFilter(freq, q, type);
+        committed = addFilter(freq, q, type);
       }
     }
     specDragStartY = null;
     specDragCurrentY = null;
     specDragMoved = false;
-    drawSpectrogram();
+    if (!committed) drawSpectrogram();
     return;
   }
   if (isSelecting) {
@@ -696,7 +698,9 @@ async function computeSpectrogram(token) {
         if (mags[b] > specMaxMag) specMaxMag = mags[b];
       }
     }
-    elSpectrogramProgress.textContent = `Analyzing… ${Math.round(end / SPEC_COLS * 100)}%`;
+    const pct = Math.round(end / SPEC_COLS * 100);
+    elSpectrogramProgress.textContent = `Analyzing… ${pct}%`;
+    elSpectrogramProgress.setAttribute('aria-valuenow', pct);
   }
 }
 
@@ -901,7 +905,7 @@ function notchFromBand(freqLow, freqHigh) {
 }
 
 function handleSpectrogramMouseDown(event) {
-  if (!srcBuffer) return;
+  if (event.button !== 0 || !srcBuffer) return;
   const rect = elSpectrogramCanvas.getBoundingClientRect();
   isSpecDragging = true;
   specDragStartY = event.clientY - rect.top;
@@ -1005,9 +1009,10 @@ function commitFilterChange(msg) {
 }
 
 function addFilter(freq, q, type = 'notch') {
-  if (filters.some(f => f.freq === freq && f.type === type)) return;
+  if (filters.some(f => f.freq === freq && f.type === type)) return false;
   filters.push({ freq, q, type });
   commitFilterChange(`Added ${filterLabel({freq, q, type})}.`);
+  return true;
 }
 
 function removeFilter(idx) {
