@@ -53,6 +53,13 @@ let selEnd = null;
 let selAnchor = null;
 let isSelecting = false;
 
+// Spectrogram drag state
+let isSpecDragging = false;
+let specDragStartY = null;
+let specDragCurrentY = null;
+let specDragMoved = false;
+let specDragRafId = null;
+
 // Interaction state
 let isDragging = false;
 let dragStartX = 0;
@@ -78,7 +85,7 @@ let elBtnUndo, elBtnRedo;
 let elBtnPreview, elBtnStop, elBtnExport, elExportFormat;
 let elBtnScaleToggle, elOutputGain, elOutputGainLabel, elBtnListenNoise;
 let elBtnSlotA, elBtnSlotB, elCustomPresetList, elBtnSavePreset;
-let elSpectrogramHint;
+let elSpectrogramHint, elAnnounce;
 
 document.addEventListener('DOMContentLoaded', () => {
   elDropZone = document.getElementById('drop-zone');
@@ -114,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
   elCustomPresetList = document.getElementById('custom-preset-list');
   elBtnSavePreset = document.getElementById('btn-save-preset');
   elSpectrogramHint = document.getElementById('spectrogram-hint');
+  elAnnounce = document.getElementById('announce');
 
   // File input
   elDropZone.addEventListener('click', () => elFileInput.click());
@@ -136,10 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-reset').addEventListener('click', resetState);
   document.getElementById('btn-reset-filters').addEventListener('click', () => {
     filters = [];
-    saveHistory();
-    renderFilterList();
-    drawSpectrogram();
-    restartPreview();
+    commitFilterChange();
   });
 
   // Waveform interaction
@@ -152,11 +157,38 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-zoom-reset').addEventListener('click', resetZoom);
 
   // Spectrogram interaction
-  elSpectrogramCanvas.addEventListener('click', handleSpectrogramClick);
+  elSpectrogramCanvas.addEventListener('mousedown', handleSpectrogramMouseDown);
   elSpectrogramCanvas.addEventListener('wheel', handleWheel, { passive: false });
 
   // Scrollbar
   elScrollbar.addEventListener('mousedown', handleScrollbarMouseDown);
+  elScrollbar.addEventListener('keydown', (event) => {
+    if (!srcBuffer) return;
+    const range = viewEnd - viewStart;
+    const step = Math.max(0.01, range * 0.1);
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      viewStart = Math.max(0, viewStart - step);
+      viewEnd = viewStart + range;
+      if (viewEnd > 1) { viewEnd = 1; viewStart = 1 - range; }
+      refreshView();
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      viewStart = Math.max(0, Math.min(1 - range, viewStart + step));
+      viewEnd = viewStart + range;
+      refreshView();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      viewStart = 0;
+      viewEnd = range;
+      refreshView();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      viewStart = 1 - range;
+      viewEnd = 1;
+      refreshView();
+    }
+  });
 
   // Selection
   document.getElementById('btn-clear-sel').addEventListener('click', clearSelection);
@@ -200,8 +232,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Actions
-  elBtnPreview.addEventListener('click', () => startPreview());
-  elBtnStop.addEventListener('click', stopPreview);
+  elBtnPreview.addEventListener('click', () => {
+    startPreview();
+    if (!elBtnStop.classList.contains('d-none')) elBtnStop.focus();
+  });
+  elBtnStop.addEventListener('click', () => {
+    stopPreview();
+    elBtnPreview.focus();
+  });
   elBtnExport.addEventListener('click', exportAudio);
 
   // Scale toggle
@@ -252,7 +290,16 @@ document.addEventListener('DOMContentLoaded', () => {
   new ResizeObserver(() => {
     if (srcBuffer) { drawWaveform(); drawSpectrogram(); }
   }).observe(elAudioInfo);
+  new ResizeObserver(() => {
+    if (srcBuffer) drawSpectrogram();
+  }).observe(document.getElementById('spectrogram'));
 });
+
+function announce(msg) {
+  if (!elAnnounce) return;
+  elAnnounce.textContent = '';
+  requestAnimationFrame(() => { elAnnounce.textContent = msg; });
+}
 
 // File loading
 
@@ -308,6 +355,7 @@ async function loadFile(file) {
   updateScrollbar();
 
   elSpectrogramProgress.textContent = 'Analyzing…';
+  elSpectrogramProgress.setAttribute('aria-valuenow', 0);
   await computeSpectrogram(token);
   if (token !== loadToken) return;
   drawSpectrogram();
@@ -428,6 +476,12 @@ function handleWheel(event) {
   zoomAround(pivot, factor);
 }
 
+function refreshView() {
+  drawWaveform();
+  drawSpectrogram();
+  updateScrollbar();
+}
+
 function zoomAround(pivot, factor) {
   const range = viewEnd - viewStart;
   const newRange = Math.max(0.0005, Math.min(1, range * factor));
@@ -438,17 +492,13 @@ function zoomAround(pivot, factor) {
   if (newEnd > 1) { newStart -= newEnd - 1; newEnd = 1; }
   viewStart = Math.max(0, newStart);
   viewEnd = Math.min(1, newEnd);
-  drawWaveform();
-  drawSpectrogram();
-  updateScrollbar();
+  refreshView();
 }
 
 function resetZoom() {
   viewStart = 0;
   viewEnd = 1;
-  drawWaveform();
-  drawSpectrogram();
-  updateScrollbar();
+  refreshView();
 }
 
 function handleMouseDown(event) {
@@ -484,13 +534,26 @@ function handleScrollbarMouseDown(event) {
     const range = viewEnd - viewStart;
     viewStart = Math.max(0, Math.min(1 - range, pos - range / 2));
     viewEnd = viewStart + range;
-    drawWaveform();
-    drawSpectrogram();
-    updateScrollbar();
+    refreshView();
   }
 }
 
 function handleMouseMove(event) {
+  if (isSpecDragging) {
+    const rect = elSpectrogramCanvas.getBoundingClientRect();
+    specDragCurrentY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+    if (Math.abs(specDragCurrentY - specDragStartY) > 4) specDragMoved = true;
+    if (specDragMoved) {
+      elSpectrogramCanvas.style.cursor = 'ns-resize';
+      if (!specDragRafId) {
+        specDragRafId = requestAnimationFrame(() => {
+          specDragRafId = null;
+          drawSpectrogram();
+        });
+      }
+    }
+    return;
+  }
   if (isSelecting) {
     const rect = elWaveformCanvas.getBoundingClientRect();
     const pos = (event.clientX - rect.left) / rect.width;
@@ -507,9 +570,7 @@ function handleMouseMove(event) {
     const range = scrollbarDragStartViewEnd - scrollbarDragStartViewStart;
     viewStart = Math.max(0, Math.min(1 - range, scrollbarDragStartViewStart + dx));
     viewEnd = viewStart + range;
-    drawWaveform();
-    drawSpectrogram();
-    updateScrollbar();
+    refreshView();
     return;
   }
   if (isDragging) {
@@ -521,13 +582,54 @@ function handleMouseMove(event) {
     if (newEnd > 1) { newStart -= newEnd - 1; newEnd = 1; }
     viewStart = Math.max(0, newStart);
     viewEnd = Math.min(1, newEnd);
-    drawWaveform();
-    drawSpectrogram();
-    updateScrollbar();
+    refreshView();
   }
 }
 
 function handleMouseUp() {
+  if (isSpecDragging) {
+    isSpecDragging = false;
+    elSpectrogramCanvas.style.cursor = '';
+    if (specDragRafId) { cancelAnimationFrame(specDragRafId); specDragRafId = null; }
+    let committed = false;
+    if (srcBuffer) {
+      const rect = elSpectrogramCanvas.getBoundingClientRect();
+      if (specDragMoved) {
+        const y1 = Math.min(specDragStartY, specDragCurrentY);
+        const y2 = Math.max(specDragStartY, specDragCurrentY);
+        const freqHigh = yToHz(y1, rect.height, srcBuffer.sampleRate);
+        const freqLow = yToHz(y2, rect.height, srcBuffer.sampleRate);
+        const type = elFilterType.value;
+        let freq, q;
+        if (type === 'notch') {
+          ({ freq, q } = notchFromBand(freqLow, freqHigh));
+        } else if (type === 'highpass') {
+          freq = Math.max(1, Math.round(freqLow));
+          q = parseFloat(elFilterQ.value) || 0.71;
+        } else {
+          freq = Math.max(1, Math.round(freqHigh));
+          q = parseFloat(elFilterQ.value) || 0.71;
+        }
+        elFilterFreq.value = freq;
+        elFilterQ.value = q;
+        committed = addFilter(freq, q, type);
+      } else {
+        const snapped = snapToPeak(specDragStartY, rect.height, srcBuffer.sampleRate);
+        const freq = snapped !== null
+          ? Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), snapped))
+          : Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), Math.round(yToHz(specDragStartY, rect.height, srcBuffer.sampleRate))));
+        const q = parseFloat(elFilterQ.value) || 30;
+        const type = elFilterType.value;
+        elFilterFreq.value = freq;
+        committed = addFilter(freq, q, type);
+      }
+    }
+    specDragStartY = null;
+    specDragCurrentY = null;
+    specDragMoved = false;
+    if (!committed) drawSpectrogram();
+    return;
+  }
   if (isSelecting) {
     isSelecting = false;
     elWaveformCanvas.style.cursor = '';
@@ -548,6 +650,7 @@ function handleMouseUp() {
 function updateScrollbar() {
   elScrollThumb.style.left = (viewStart * 100) + '%';
   elScrollThumb.style.width = ((viewEnd - viewStart) * 100) + '%';
+  elScrollbar.setAttribute('aria-valuenow', Math.round(viewStart * 100));
 }
 
 // Selection
@@ -595,7 +698,9 @@ async function computeSpectrogram(token) {
         if (mags[b] > specMaxMag) specMaxMag = mags[b];
       }
     }
-    elSpectrogramProgress.textContent = `Analyzing… ${Math.round(end / SPEC_COLS * 100)}%`;
+    const pct = Math.round(end / SPEC_COLS * 100);
+    elSpectrogramProgress.textContent = `Analyzing… ${pct}%`;
+    elSpectrogramProgress.setAttribute('aria-valuenow', pct);
   }
 }
 
@@ -662,17 +767,25 @@ function drawSpectrogram() {
   const endCol = Math.floor(viewEnd * SPEC_COLS);
   const numViewCols = Math.max(1, endCol - startCol);
 
+  const binForY = new Uint16Array(height);
+  for (let py = 0; py < height; py++) {
+    binForY[py] = Math.min(Math.round(yToHz(py, height, sampleRate) * FFT_SIZE / sampleRate), numBins - 1);
+  }
+
   const imageData = ctx.createImageData(width, height);
+  const inv = specMaxMag > 0 ? 1 / specMaxMag : 0;
   for (let px = 0; px < width; px++) {
     const col = Math.max(0, Math.min(SPEC_COLS - 1, startCol + Math.round(px * numViewCols / width)));
     const off = col * numBins;
     for (let py = 0; py < height; py++) {
-      const bin = Math.min(Math.round(yToHz(py, height, sampleRate) * FFT_SIZE / sampleRate), numBins - 1);
-      const mag = specMags[off + bin];
-      const t = specMaxMag > 0 ? mag / specMaxMag : 0;
+      const t = specMags[off + binForY[py]] * inv;
       const db = t > 0 ? Math.max(0, 1 + Math.log10(t) / 3) : 0;
-      const [r, g, b] = spectrogramColor(db);
       const idx = (py * width + px) * 4;
+      let r, g, b;
+      if (db < 0.25) { const s = db / 0.25; r = 0; g = 0; b = Math.round(255 * s); }
+      else if (db < 0.5) { const s = (db - 0.25) / 0.25; r = 0; g = Math.round(255 * s); b = 255; }
+      else if (db < 0.75) { const s = (db - 0.5) / 0.25; r = Math.round(255 * s); g = 255; b = Math.round(255 * (1 - s)); }
+      else { const s = (db - 0.75) / 0.25; r = 255; g = Math.round(255 * (1 - s)); b = 0; }
       imageData.data[idx] = r;
       imageData.data[idx + 1] = g;
       imageData.data[idx + 2] = b;
@@ -681,6 +794,7 @@ function drawSpectrogram() {
   }
   ctx.putImageData(imageData, 0, 0);
   drawSpectrogramLabels(ctx, width, height, sampleRate);
+  if (isSpecDragging && specDragMoved) drawSpecDragOverlay(ctx, width, height, sampleRate);
 }
 
 function drawSpectrogramLabels(ctx, width, height, sampleRate) {
@@ -707,7 +821,7 @@ function drawSpectrogramLabels(ctx, width, height, sampleRate) {
     ctx.moveTo(0, y); ctx.lineTo(width, y);
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255)';
-    ctx.fillText(freq >= 1000 ? `${freq / 1000}k` : `${freq}`, 4, y - 2);
+    ctx.fillText(formatHz(freq), 4, y - 2);
   }
 
   for (const { freq, type } of filters) {
@@ -781,26 +895,57 @@ function snapToPeak(clickedY, height, sampleRate) {
   return bestBin >= 1 ? Math.round(bestBin * sampleRate / FFT_SIZE) : null;
 }
 
-function spectrogramColor(t) {
-  if (t < 0.25) { const s = t / 0.25; return [0, 0, Math.round(255 * s)]; }
-  if (t < 0.5) { const s = (t - 0.25) / 0.25; return [0, Math.round(255 * s), 255]; }
-  if (t < 0.75) { const s = (t - 0.5) / 0.25; return [Math.round(255 * s), 255, Math.round(255 * (1 - s))]; }
-  const s = (t - 0.75) / 0.25;
-  return [255, Math.round(255 * (1 - s)), 0];
+
+function notchFromBand(freqLow, freqHigh) {
+  const center = Math.sqrt(freqLow * freqHigh);
+  const denom = freqHigh - freqLow;
+  const qRaw = denom > 1e-6 ? center / denom : 0.1;
+  const q = Math.max(0.1, Math.round((isFinite(qRaw) ? qRaw : 0.1) * 10) / 10);
+  return { freq: Math.round(center), q };
 }
 
-function handleSpectrogramClick(event) {
-  if (!srcBuffer) return;
+function handleSpectrogramMouseDown(event) {
+  if (event.button !== 0 || !srcBuffer) return;
   const rect = elSpectrogramCanvas.getBoundingClientRect();
-  const y = event.clientY - rect.top;
-  const snapped = snapToPeak(y, rect.height, srcBuffer.sampleRate);
-  const freq = snapped !== null
-    ? Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), snapped))
-    : Math.max(1, Math.min(Math.round(srcBuffer.sampleRate / 2), Math.round(yToHz(y, rect.height, srcBuffer.sampleRate))));
-  const q = parseFloat(elFilterQ.value) || 30;
+  isSpecDragging = true;
+  specDragStartY = event.clientY - rect.top;
+  specDragCurrentY = specDragStartY;
+  specDragMoved = false;
+}
+
+function drawSpecDragOverlay(ctx, width, height, sampleRate) {
+  const y1 = Math.min(specDragStartY, specDragCurrentY);
+  const y2 = Math.max(specDragStartY, specDragCurrentY);
+  if (y2 - y1 < 2) return;
+  const freqHigh = yToHz(y1, height, sampleRate);
+  const freqLow = yToHz(y2, height, sampleRate);
   const type = elFilterType.value;
-  elFilterFreq.value = freq;
-  addFilter(freq, q, type);
+
+  ctx.fillStyle = 'rgba(255, 220, 50, 0.13)';
+  ctx.fillRect(0, y1, width, y2 - y1);
+  ctx.strokeStyle = 'rgba(255, 220, 50, 0.65)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(0, y1); ctx.lineTo(width, y1);
+  ctx.moveTo(0, y2); ctx.lineTo(width, y2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  let label;
+  if (type === 'notch') {
+    const { freq, q } = notchFromBand(freqLow, freqHigh);
+    label = `notch ${formatHz(freq)} Hz · Q ${q.toFixed(1)}`;
+  } else if (type === 'highpass') {
+    label = `highpass ↑ ${formatHz(Math.round(freqLow))} Hz`;
+  } else {
+    label = `lowpass ↓ ${formatHz(Math.round(freqHigh))} Hz`;
+  }
+
+  ctx.font = '11px monospace';
+  ctx.fillStyle = 'rgba(255, 220, 50, 0.95)';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, 6, y2 - y1 > 20 ? y1 + 14 : Math.max(14, y1 - 4));
 }
 
 // Band detection
@@ -854,25 +999,34 @@ function detectBands() {
 
 // Filters
 
-function addFilter(freq, q, type = 'notch') {
-  if (filters.some(f => f.freq === freq && f.type === type)) return;
-  filters.push({ freq, q, type });
+function commitFilterChange(msg) {
   saveHistory();
   renderFilterList();
   drawSpectrogram();
   restartPreview();
+  const n = filters.length;
+  announce(msg ?? (n === 0 ? 'All filters removed.' : `${n} filter${n === 1 ? '' : 's'} active.`));
+}
+
+function addFilter(freq, q, type = 'notch') {
+  if (filters.some(f => f.freq === freq && f.type === type)) return false;
+  filters.push({ freq, q, type });
+  commitFilterChange(`Added ${filterLabel({freq, q, type})}.`);
+  return true;
 }
 
 function removeFilter(idx) {
+  const removed = filters[idx];
   filters.splice(idx, 1);
-  saveHistory();
-  renderFilterList();
-  drawSpectrogram();
-  restartPreview();
+  commitFilterChange(`Removed ${filterLabel(removed)}.`);
+}
+
+function formatHz(hz) {
+  return hz >= 1000 ? `${parseFloat((hz / 1000).toFixed(1))}k` : `${Math.round(hz)}`;
 }
 
 function filterLabel(f) {
-  const hz = f.freq >= 1000 ? `${f.freq / 1000 % 1 === 0 ? f.freq / 1000 : (f.freq / 1000).toFixed(1)}k` : f.freq;
+  const hz = formatHz(f.freq);
   if (f.type === 'highpass') return `highpass ${hz} Hz`;
   if (f.type === 'lowpass') return `lowpass ${hz} Hz`;
   return `notch ${hz} Hz (Q: ${f.q})`;
@@ -910,6 +1064,8 @@ function undo() {
   renderFilterList();
   drawSpectrogram();
   updateUndoRedoButtons();
+  const n = filters.length;
+  announce(n === 0 ? 'Undone. No filters.' : `Undone. ${n} filter${n === 1 ? '' : 's'} active.`);
 }
 
 function redo() {
@@ -919,6 +1075,8 @@ function redo() {
   renderFilterList();
   drawSpectrogram();
   updateUndoRedoButtons();
+  const n = filters.length;
+  announce(n === 0 ? 'Redone. No filters.' : `Redone. ${n} filter${n === 1 ? '' : 's'} active.`);
 }
 
 function updateUndoRedoButtons() {
@@ -1058,12 +1216,14 @@ function startPreview(offsetOverride) {
 }
 
 function onPreviewEnded() {
+  const stopHasFocus = document.activeElement === elBtnStop;
   playbackCtx?.close().catch(() => {});
   playbackCtx = null;
   previewSource = null;
   previewAuxSource = null;
   elBtnPreview.classList.remove('d-none');
   elBtnStop.classList.add('d-none');
+  if (stopHasFocus) elBtnPreview.focus();
 }
 
 function restartPreview() {
@@ -1128,6 +1288,11 @@ async function exportAudio() {
   }
 }
 
+function floatToInt16(s) {
+  const c = Math.max(-1, Math.min(1, s));
+  return c < 0 ? c * 32768 : c * 32767;
+}
+
 function encodeWAV(buffer) {
   const numChannels = buffer.numberOfChannels;
   const sampleRate = buffer.sampleRate;
@@ -1144,11 +1309,11 @@ function encodeWAV(buffer) {
   view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true);
   view.setUint16(34, 16, true); str(36, 'data'); view.setUint32(40, dataSize, true);
 
+  const channels = Array.from({length: numChannels}, (_, ch) => buffer.getChannelData(ch));
   let off = 44;
   for (let i = 0; i < numSamples; i++) {
     for (let ch = 0; ch < numChannels; ch++) {
-      const s = Math.max(-1, Math.min(1, buffer.getChannelData(ch)[i]));
-      view.setInt16(off, s < 0 ? s * 32768 : s * 32767, true);
+      view.setInt16(off, floatToInt16(channels[ch][i]), true);
       off += 2;
     }
   }
@@ -1162,10 +1327,7 @@ function encodeMp3(buffer) {
 
   const toInt16 = (f32) => {
     const i16 = new Int16Array(f32.length);
-    for (let i = 0; i < f32.length; i++) {
-      const s = Math.max(-1, Math.min(1, f32[i]));
-      i16[i] = s < 0 ? s * 32768 : s * 32767;
-    }
+    for (let i = 0; i < f32.length; i++) i16[i] = floatToInt16(f32[i]);
     return i16;
   };
 
@@ -1214,6 +1376,8 @@ function switchSlot(slot) {
   drawSpectrogram();
   updateUndoRedoButtons();
   restartPreview();
+  const n = filters.length;
+  announce(`Slot ${slot.toUpperCase()} active. ${n} filter${n === 1 ? '' : 's'}.`);
 }
 
 function updateSlotButtons() {
@@ -1233,7 +1397,7 @@ function safeParsePresets() {
 }
 
 function updateSpectrogramHint() {
-  if (elSpectrogramHint) elSpectrogramHint.textContent = `Click to add ${elFilterType.value} filter at that frequency`;
+  if (elSpectrogramHint) elSpectrogramHint.textContent = `Click or drag to add ${elFilterType.value} filter`;
 }
 
 function addFiltersBatch(newFilters) {
@@ -1244,11 +1408,7 @@ function addFiltersBatch(newFilters) {
       added = true;
     }
   }
-  if (!added) return;
-  saveHistory();
-  renderFilterList();
-  drawSpectrogram();
-  restartPreview();
+  if (added) commitFilterChange();
 }
 
 // Custom presets

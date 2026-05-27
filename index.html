@@ -52,8 +52,15 @@
 				height: 120px;
 			}
 
+			#spectrogram {
+				height: 420px;
+				min-height: 150px;
+				overflow: hidden;
+				resize: vertical;
+			}
+
 			#spectrogram-canvas {
-				height: 330px;
+				height: 100%;
 			}
 
 			#spectrogram-overlay {
@@ -73,6 +80,11 @@
 				border-radius: 4px;
 				height: 100%;
 				position: absolute;
+			}
+
+			#spectrogram-scrollbar:focus-visible {
+				outline: 2px solid var(--bs-primary);
+				outline-offset: 2px;
 			}
 
 			#output-gain {
@@ -125,7 +137,7 @@
 						</div>
 					</div>
 					<div class="card-body p-0">
-						<canvas id="waveform-canvas" class="w-100"></canvas>
+						<canvas id="waveform-canvas" class="w-100" role="img" aria-label="Audio waveform"></canvas>
 					</div>
 				</div>
 				<div id="selection-info" class="alert alert-warning align-items-center d-flex d-none justify-content-between mb-4 px-2 py-2">
@@ -144,16 +156,16 @@
 							<span id="spectrogram-hint" class="small text-body-secondary">Click to add notch filter at that frequency</span>
 						</div>
 					</div>
-					<div class="card-body p-0 position-relative">
-						<canvas id="spectrogram-canvas" class="w-100"></canvas>
+					<div id="spectrogram" class="card-body p-0 position-relative">
+						<canvas id="spectrogram-canvas" class="w-100" role="img" aria-label="Audio frequency spectrogram"></canvas>
 						<div id="spectrogram-overlay" class="align-items-center d-flex h-100 justify-content-center position-absolute start-0 top-0 w-100">
 							<div class="text-center text-white">
 								<div class="me-2 spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
-								<span id="spectrogram-progress">Analyzing…</span>
+								<span id="spectrogram-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">Analyzing…</span>
 							</div>
 						</div>
 					</div>
-					<div id="spectrogram-scrollbar">
+					<div id="spectrogram-scrollbar" role="scrollbar" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Spectrogram time scroll" aria-controls="spectrogram-canvas" tabindex="0">
 						<div id="spectrogram-scroll-thumb"></div>
 					</div>
 				</div>
@@ -206,7 +218,7 @@
 								<button id="btn-add-filter" class="btn btn-primary btn-sm">Add filter</button>
 							</div>
 						</div>
-						<div id="filter-list" class="d-flex flex-wrap gap-2">
+						<div id="filter-list" class="d-flex flex-wrap gap-2" aria-label="Active filters">
 							<span class="small text-body-secondary">No filters added yet.</span>
 						</div>
 						<div class="border-top mt-4 pt-4">
@@ -234,6 +246,7 @@
 					</div>
 				</div>
 			</div>
+			<div id="announce" aria-live="polite" class="visually-hidden"></div>
 			<details>
 				<summary class="h5 mb-4">About Audiokira</summary>
 				<p class="mb-2">Audiokira removes recurring frequency patterns—like electrical hum, HVAC noise, or tonal interference—from audio and video files, entirely in your browser.</p>
@@ -252,7 +265,8 @@
 						<ul class="mb-4 small">
 							<li class="mb-2">Very large files may take several seconds to analyze.</li>
 							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Use “Noise only” to hear what is removed, then adjust Q and preview normally to minimize collateral effect.</li>
-							<li>Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
+							<li class="mb-2">Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
+							<li>Keyboard navigation for spectrogram interaction and waveform selection is lacking; while the tool ideally should be accessible to everyone, with only one user (added during early development) this isn’t currently being pursued.</li>
 						</ul>
 					</div>
 					<div class="col-md-6">
@@ -260,7 +274,7 @@
 						<ul class="mb-4 small">
 							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
 							<li class="mb-2">“Detect recurring bands” flags frequencies present in more than roughly a third of the file.</li>
-							<li class="mb-2">Hovering over the spectrogram shows the frequency and nearest musical note. Clicking snaps to the strongest nearby peak.</li>
+							<li class="mb-2">Hovering over the spectrogram shows the frequency and nearest musical note. Clicking snaps to the strongest nearby peak; dragging vertically defines a band—the height of the drag sets the notch width (Q). The spectrogram can also be resized vertically by dragging its bottom-right corner.</li>
 							<li class="mb-2">“Filtered out only” plays back exactly what the filters remove—useful for verifying nothing intentional is being cut. Export always produces the cleaned signal regardless of this toggle.</li>
 							<li class="mb-2">A/B slots store two independent filter sets; clicking “A” or “B” saves the current set and loads the other for quick comparison.</li>
 							<li class="mb-2">The Gain slider compensates for volume loss from heavy filtering and is reflected in the export.</li>
