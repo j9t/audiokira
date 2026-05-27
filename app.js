@@ -58,6 +58,7 @@ let isSpecDragging = false;
 let specDragStartY = null;
 let specDragCurrentY = null;
 let specDragMoved = false;
+let specDragRafId = null;
 
 // Interaction state
 let isDragging = false;
@@ -543,7 +544,12 @@ function handleMouseMove(event) {
     if (Math.abs(specDragCurrentY - specDragStartY) > 4) specDragMoved = true;
     if (specDragMoved) {
       elSpectrogramCanvas.style.cursor = 'ns-resize';
-      drawSpectrogram();
+      if (!specDragRafId) {
+        specDragRafId = requestAnimationFrame(() => {
+          specDragRafId = null;
+          drawSpectrogram();
+        });
+      }
     }
     return;
   }
@@ -583,6 +589,7 @@ function handleMouseUp() {
   if (isSpecDragging) {
     isSpecDragging = false;
     elSpectrogramCanvas.style.cursor = '';
+    if (specDragRafId) { cancelAnimationFrame(specDragRafId); specDragRafId = null; }
     if (srcBuffer) {
       const rect = elSpectrogramCanvas.getBoundingClientRect();
       if (specDragMoved) {
