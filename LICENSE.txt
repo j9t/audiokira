@@ -1,17 +1,17 @@
 Ponzi Coffee License 1.0
 
-Copyright 2026 Jens Oliver Meiert (<https://github.com/j9t/audiokira>, donation: <https://buymeacoffee.com/meiert>)
+Copyright 2026 Jens Oliver Meiert (<https://github.com/j9t/audiokira>, fee: <https://buymeacoffee.com/meiert>)
 
-Fallback donations: <https://donate.unrwa.org/>
+Payment fallback: <https://donate.unrwa.org/>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-Coffee condition: If the licensee intends to distribute the Software or any derivative work based on it, they must donate 5 euros to each copyright holder listed above. The license is not fully in effect until all such donations have been made.
+Coffee condition: If the licensee intends to distribute the Software or any derivative work based on it, they must pay a fee of €5 to each copyright holder listed above before doing so. Distribution includes publication via package managers, public repositories, and bundling within other software, but does not include private internal use or SaaS deployment where no copy of the Software is transferred. Use of the Software without fulfilling this condition constitutes copyright infringement.
 
-Derivative works: A licensee who creates and publicly releases a derivative work based on this Software—meaning a substantial addition, improvement, or new feature, and not merely a minor edit or correction—may add themselves as an additional copyright holder by appending a new copyright line to the notice, following the format above. They must include a reference to the specific derivative work that qualifies them. No one may add themselves to the copyright notice without having created such a qualifying derivative work.
+Derivative works: A licensee who creates and publicly releases a derivative work based on this Software—meaning a substantial addition, improvement, or new feature (such as a new module, a significant refactor, or a meaningful extension of functionality), and not merely a minor edit or correction—may add themselves as an additional copyright holder by appending a new copyright line to the notice, following the format above. They must include a reference to the specific derivative work that qualifies them. No one may add themselves to the copyright notice without having created such a qualifying derivative work.
 
-Payment availability: Each copyright holder is expected to maintain at least one reachable payment method at their listed donation URL. If a holder’s donation URL is unreachable, the licensee must make a good-faith attempt to contact the holder directly to arrange payment. If no response is received within 7 days, the licensee may instead donate 5 euros on that holder’s behalf to the fallback cause listed above, and note this in their project’s documentation. The payment obligation is not extinguished by an unreachable URL.
+Payment availability: Each copyright holder is expected to maintain at least one reachable payment method at their listed payment URL. If a holder’s payment URL is unreachable, the licensee must make a good-faith attempt to contact the holder directly to arrange payment. If no response is received within 7 days, the licensee may instead pay €5 on that holder’s behalf to the fallback cause listed above, and note this in their project’s documentation. The payment obligation is not extinguished by an unreachable URL.
 
-Notice: The full copyright notice—including all copyright lines, the fallback donation URL, and this permission notice—shall be included in all source distributions of the Software. Proprietary distributions are encouraged to do the same, but are not required to.
+Notice: The full copyright notice—including all copyright lines, the payment fallback URL, and this permission notice—shall be included in all source distributions of the Software. Proprietary distributions are encouraged to do the same, but are not required to.
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
