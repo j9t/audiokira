@@ -98,6 +98,12 @@
 				}
 
 			}
+
+			/* Bootstrap tailoring */
+
+			.col-md-6 {
+				margin-top: 0;
+			}
 		</style>
 	</head>
 	<body class="px-4 py-2">
@@ -251,7 +257,7 @@
 				<summary class="h5 mb-4">About Audiokira</summary>
 				<p class="mb-2">Audiokira removes recurring frequency patterns—like electrical hum, HVAC noise, or tonal interference—from audio and video files, entirely in your browser.</p>
 				<div class="g-4 py-4 row">
-					<div class="col-md-6">
+					<div class="col-md-6 mt-3">
 						<h2 class="h6 mb-2">How to Use Audiokira</h2>
 						<ol class="mb-4 small">
 							<li class="mb-2"><strong>Load a file.</strong> Drop any audio or video file onto the page. The audio track is extracted automatically.</li>
@@ -262,14 +268,14 @@
 							<li><strong>Export.</strong> Choose WAV (lossless) or MP3, then click “Export.”</li>
 						</ol>
 						<h2 class="h6 mb-2">Limitations</h2>
-						<ul class="mb-4 small">
+						<ul class="mb-2 small">
 							<li class="mb-2">Very large files may take several seconds to analyze.</li>
 							<li class="mb-2">Notch filters remove a frequency everywhere in the signal—they cannot distinguish unwanted noise from intentional sound at the same pitch. Use “Noise only” to hear what is removed, then adjust Q and preview normally to minimize collateral effect.</li>
 							<li class="mb-2">Spectrogram analysis uses the left (or mono) channel for visualization; export processes all channels.</li>
 							<li>Keyboard navigation for spectrogram interaction and waveform selection is lacking; while the tool ideally should be accessible to everyone, with only one user (added during early development) this isn’t currently being pursued.</li>
 						</ul>
 					</div>
-					<div class="col-md-6">
+					<div class="col-md-6 mt-3">
 						<h2 class="h6 mb-2">Tips</h2>
 						<ul class="mb-4 small">
 							<li class="mb-2">Power line hum sits at 50 Hz (Europe) or 60 Hz (North America) and repeats at each harmonic—100/120, 150/180 Hz, and so on. The presets add all three at once.</li>
