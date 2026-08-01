@@ -3,6 +3,10 @@ name: "GitHub Pages"
 on:
   push:
     branches: main
+    # Skip changes that don’t affect the site
+    paths:
+      - "app.js"
+      - "index.html"
 
 permissions:
   contents: read
