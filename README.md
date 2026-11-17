@@ -6,7 +6,7 @@ Audiokira (¬Akira) is a browser-based audio frequency editor. It removes recurr
 
 Use Audiokira at **[j9t.github.io/audiokira](https://j9t.github.io/audiokira/)**.
 
-For usage instructions, filter presets, tips, and limitations, see the “About Audiokira” section of the editor.
+For usage instructions, filter presets, tips, and limitations, see the _About Audiokira_ section of the editor.
 
 ***
 
